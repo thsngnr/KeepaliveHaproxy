@@ -1,0 +1,6 @@
+# Gerçek IP/token değerleriyle doldurulmuş variables.env asla commit edilmesin.
+# Doldurulmuş kopyanı variables.env.local gibi farklı bir isimle tut (bu da
+# ignore'lu) ve install script'lerini çalıştırmadan önce variables.env'e
+# kopyala/sembolik link yap.
+variables.env.local
+*.local.env
