@@ -1,0 +1,21 @@
+# Adds/removes VIP <VIP_IP>/32 on lo as a host-route-only address (no ARP
+# reply, per the paired sysctl.d/60-lvs-dr-realserver.conf file).
+# - ExecStart uses `ip address replace` so a re-run (e.g. after a crash/
+#   restart with the address already present) succeeds instead of failing
+#   on "exists".
+# - ExecStop is prefixed `-` so systemd ignores its exit status: if the
+#   address is already gone, stop still succeeds and does not fail the unit.
+[Unit]
+Description=LVS-DR real-server VIP on loopback (<VIP_IP>/32)
+After=network-online.target
+Wants=network-online.target
+Before=rsyslog.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/ip address replace <VIP_IP>/32 dev lo scope host label lo:vip200
+ExecStop=-/sbin/ip addr del <VIP_IP>/32 dev lo label lo:vip200
+
+[Install]
+WantedBy=multi-user.target

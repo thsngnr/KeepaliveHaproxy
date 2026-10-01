@@ -1,0 +1,33 @@
+# Bu parçaları $SPLUNK_HOME/etc/system/local/inputs.conf içine ekle (HF'nin
+# kendi local config'i -- app config'ine değil, system/local'e koy, çünkü o
+# en yüksek önceliğe sahip ve global [http] ayarını kesin olarak belirler).
+# Splunk'ı restart et: $SPLUNK_HOME/bin/splunk restart
+
+[monitor:///opt/data/...]
+disabled = false
+sourcetype = syslog
+index = main
+
+[http]
+disabled = 0
+port = <HEC_PORT>
+enableSSL = 0
+
+# HEC token -- TÜM 3 HF'DE AYNI TOKEN DEĞERİ olmalı (stanza adı farklı
+# olabilir, Splunk auth sadece token değerine bakar). Token'ı Splunk Web
+# (Settings > Data Inputs > HTTP Event Collector > New Token) ile üretip
+# değerini buraya/```outputs.conf``` yerine HEC token config dosyasına
+# ($SPLUNK_HOME/etc/apps/splunk_httpinput/local/inputs.conf) koy:
+#
+# [http://lb_shared_hec_token]
+# index = main
+# description = Shared HEC token for HAProxy LB across 3 HFs
+# disabled = 0
+# token = <HEC_TOKEN>
+
+# --- outputs.conf (aynı dosyanın yanına, system/local/outputs.conf) ---
+# [tcpout]
+# defaultGroup = primary_indexers
+#
+# [tcpout:primary_indexers]
+# server = <INDEXER_IP>:<INDEXER_RECEIVING_PORT>

@@ -1,0 +1,19 @@
+[Unit]
+Description=Splunk HF UDP/TCP syslog + HEC readiness endpoint
+After=network.target rsyslog.service
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/hf-readyz/readyz.py
+Restart=always
+RestartSec=2
+User=syslog
+Group=adm
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/data
+# Only lb1/lb2 (the keepalived MISC_CHECK / haproxy httpchk sources) plus
+# localhost may query this. Edit to match your LB IPs.
+Environment=READYZ_ALLOWED_CLIENTS=<LB1_IP>,<LB2_IP>,127.0.0.1,::1
+
+[Install]
+WantedBy=multi-user.target
