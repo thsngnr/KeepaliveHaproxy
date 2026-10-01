@@ -66,6 +66,7 @@ scripts/
   install-lb-node.sh           # LB node'a dosyaları kurar + servisleri başlatır
   install-hf-node.sh           # HF node'a dosyaları kurar + servisleri başlatır
   gen-vrrp-key.sh              # VRRP auth_hmac key dosyasını üretir
+  prepare-offline-bundle.sh    # Air-gapped LB kurulumu için paket bundle'ı hazırlar
 loadtest/
   loadtest.py                  # Çoklu source-IP TCP+UDP eşzamanlı yük testi
 variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığı dosya
@@ -80,6 +81,26 @@ variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığ
 - Her 5 host'ta: `rsyslog`, `haproxy` (sadece lb'lerde), `keepalived` (sadece
   lb'lerde), `ipvsadm`+`ip_vs` kernel modülü (lb'lerde), Python 3 (hf'lerde).
 - Splunk'ta bir HEC token (tüm HF'lerde **aynı token değeri**, enableSSL=0).
+
+### LB'ler internete çıkamıyorsa (air-gapped)
+
+`install-lb-node.sh` normalde iki şey için internet ister: apt paketleri
+(haproxy/ipvsadm/ipset/build-essential/...) ve keepalived 2.4.3'ün kaynak
+tarball'ı (keepalived.org). İnternetsiz bir LB için:
+
+```bash
+# 1) İNTERNETİ OLAN, hedefle AYNI Ubuntu sürümündeki bir makinede:
+./scripts/prepare-offline-bundle.sh ./offline-bundle
+
+# 2) ./offline-bundle klasörünü scp/usb/vb. ile air-gapped LB'ye taşı
+
+# 3) air-gapped LB'de -- apt-get update/curl HİÇ çalıştırılmaz:
+./scripts/install-lb-node.sh lb1 ./offline-bundle
+```
+
+`prepare-offline-bundle.sh` haproxy'yi de aynı vbernat PPA'dan (3.4 serisi)
+indirir, böylece offline kurulum online kurulumla aynı haproxy sürümünü
+alır.
 
 ## Kurulum sırası
 
