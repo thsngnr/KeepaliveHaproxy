@@ -6,23 +6,43 @@ TCP 514 ve UDP 514 syslog **IPVS Direct Routing** (keepalived) ile, HEC (8088)
 **HAProxy** ile load-balance edilir; syslog'da gerçek client source IP, HF'lerde
 `$fromhost-ip` üzerinden korunur (HAProxy'den geçmez).
 
-```
-                 syslog / HEC client'lar
-                            │
-                            ▼
-              VIP <VIP_IP>  (keepalived VRRP, lb1 ⇄ lb2, active/passive)
-                            │
-        ┌───────────────────┴───────────────────┐
-        │  TCP :514, UDP :514 → IPVS-DR (keepalived) │  src IP korunur
-        │  TCP :8088          → HAProxy              │  round-robin
-        └───────────────────┬───────────────────┘
-            ┌───────────────┼───────────────┐
-            ▼               ▼               ▼
-          hf1             hf2             hf3
-     rsyslog :514 (tcp+udp) + splunkd HEC :8088 + hf-readyz :9099
-                            │
-                            ▼  outputs.conf (primary_indexers)
-                    <INDEXER_IP>:9997
+```mermaid
+flowchart TB
+    CLIENTS["syslog / HEC client'lar<br/>(farklı source IP'ler)"]
+
+    subgraph VIPBLOCK[" "]
+        direction TB
+        VIP(["VIP &lt;VIP_IP&gt;<br/>keepalived VRRP · lb1 ⇄ lb2 · active/passive"])
+        VIP --> IPVS["TCP/UDP :514 → IPVS-DR<br/>(keepalived kernel-level)<br/>src IP korunur"]
+        VIP --> HAP["TCP :8088 → HAProxy<br/>round-robin · httpchk"]
+    end
+
+    CLIENTS --> VIP
+
+    IPVS --> HF1
+    IPVS --> HF2
+    IPVS --> HF3
+    HAP --> HF1
+    HAP --> HF2
+    HAP --> HF3
+
+    subgraph HFS[" "]
+        direction TB
+        HF1["hf1<br/>rsyslog :514 (tcp+udp)<br/>HEC :8088 · hf-readyz :9099"]
+        HF2["hf2<br/>rsyslog :514 (tcp+udp)<br/>HEC :8088 · hf-readyz :9099"]
+        HF3["hf3<br/>rsyslog :514 (tcp+udp)<br/>HEC :8088 · hf-readyz :9099"]
+    end
+
+    HF1 --> IDX[("outputs.conf: primary_indexers<br/>&lt;INDEXER_IP&gt;:9997")]
+    HF2 --> IDX
+    HF3 --> IDX
+
+    classDef lb fill:#1f6feb,color:#fff,stroke:#1f6feb;
+    classDef hf fill:#2da44e,color:#fff,stroke:#2da44e;
+    classDef idx fill:#8250df,color:#fff,stroke:#8250df;
+    class VIP,IPVS,HAP lb
+    class HF1,HF2,HF3 hf
+    class IDX idx
 ```
 
 ## Klasör yapısı
@@ -62,6 +82,19 @@ variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığ
 - Splunk'ta bir HEC token (tüm HF'lerde **aynı token değeri**, enableSSL=0).
 
 ## Kurulum sırası
+
+```mermaid
+flowchart LR
+    A["1 · variables.env<br/>doldur"] --> B["2 · HER HF'de<br/>install-hf-node.sh"]
+    B --> C["3a · bir LB'de<br/>gen-vrrp-key.sh"]
+    C --> D["3b · key'i diğer LB'ye<br/>kopyala"]
+    D --> E["3c · HER LB'de<br/>install-lb-node.sh"]
+    E --> F["4 · doğrula<br/>ipvsadm -L -n<br/>systemctl status"]
+    F --> G["5 · loadtest.py<br/>ile çoklu-IP testi"]
+
+    classDef step fill:#24292f,color:#fff,stroke:#24292f;
+    class A,B,C,D,E,F,G step
+```
 
 1. `variables.env` dosyasını doldur (VIP, lb1/lb2 IP'leri, hf1/2/3 IP'leri,
    indexer IP'si, HEC token, router_id'ler).
