@@ -44,9 +44,37 @@ render() {
 echo "== $ROLE: paketler =="
 if command -v apt-get >/dev/null; then
     apt-get update -qq
-    apt-get install -y haproxy keepalived ipvsadm ipset
+    apt-get install -y haproxy ipvsadm ipset
 fi
 modprobe ip_vs 2>/dev/null || true
+
+echo "== $ROLE: keepalived (kaynaktan derleme) =="
+# Ubuntu'nun apt reposundaki keepalived (ör. 24.04/26.04'te 1:2.3.4-1)
+# auth_hmac / use_vmac / vmac_xmit_base gibi bu config'in kullandığı
+# özellikleri desteklemiyor (bunlar daha yeni keepalived sürümlerinde
+# geldi). Bu yüzden apt'tan KURMUYORUZ -- 2.4.3'ü kaynaktan derliyoruz.
+KA_VERSION="2.4.3"
+if ! keepalived --version 2>&1 | grep -q "v${KA_VERSION}"; then
+    apt-get purge -y keepalived >/dev/null 2>&1 || true
+    apt-get install -y build-essential libssl-dev libnl-3-dev libnl-genl-3-dev \
+        libnfnetlink-dev libipset-dev libsnmp-dev libmagic-dev pkg-config \
+        libxtables-dev libip4tc-dev libip6tc-dev
+    mkdir -p /usr/src
+    cd /usr/src
+    if [ ! -f "keepalived-${KA_VERSION}.tar.gz" ]; then
+        curl -fsSLO "https://www.keepalived.org/software/keepalived-${KA_VERSION}.tar.gz"
+    fi
+    rm -rf "keepalived-${KA_VERSION}"
+    tar xzf "keepalived-${KA_VERSION}.tar.gz"
+    cd "keepalived-${KA_VERSION}"
+    ./configure --prefix=/usr --sysconfdir=/etc --with-init=systemd \
+        --with-systemdsystemunitdir=/usr/lib/systemd/system
+    make -j"$(nproc)"
+    make install
+    systemctl daemon-reload
+    cd "$HERE"
+fi
+keepalived --version | head -1
 
 echo "== $ROLE: haproxy.cfg =="
 render "$HERE/lb-nodes/common/haproxy/haproxy.cfg" /etc/haproxy/haproxy.cfg
