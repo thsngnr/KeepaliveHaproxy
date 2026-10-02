@@ -62,8 +62,7 @@ def _socket_listening(proto_flag):
         )
         lines = [l for l in out.stdout.splitlines()
                  if l.strip() and not l.lstrip().startswith(("State", "Netid"))]
-        return bool(lines), "
-".join(lines)[:200]
+        return bool(lines), " | ".join(lines)[:200]
     except Exception as exc:
         return False, str(exc)
 
