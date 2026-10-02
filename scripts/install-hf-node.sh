@@ -16,6 +16,16 @@ source "$HERE/variables.env"
 
 PRIMARY_IF="${1:-eth0}"   # DR sysctl dosyasındaki per-interface satırları için
 
+# Servis kullanicisi: Debian/Ubuntu'da rsyslog "syslog:adm" ile calisir; RHEL
+# ailesinde bu kullanici/grup yoktur ve rsyslog root calisir. Ikisi de varsa
+# syslog:adm, yoksa root:root kullan (aksi halde systemd 217/USER hatasi verir).
+if getent passwd syslog >/dev/null 2>&1 && getent group adm >/dev/null 2>&1; then
+    SVC_USER=syslog; SVC_GROUP=adm
+else
+    SVC_USER=root; SVC_GROUP=root
+fi
+echo "Servis kullanicisi: ${SVC_USER}:${SVC_GROUP}"
+
 render() {
     sed \
         -e "s/<VIP_IP>/${VIP_IP}/g" \
@@ -31,6 +41,8 @@ render() {
         -e "s/<READYZ_PORT>/${READYZ_PORT}/g" \
         -e "s/<INDEXER_RECEIVING_PORT>/${INDEXER_RECEIVING_PORT}/g" \
         -e "s|<DATA_DIR>|${DATA_DIR}|g" \
+        -e "s/<SVC_USER>/${SVC_USER}/g" \
+        -e "s/<SVC_GROUP>/${SVC_GROUP}/g" \
         "$1" > "$2"
 }
 
@@ -57,7 +69,7 @@ echo "== ${DATA_DIR} + rsyslog AppArmor izni =="
 # verir; bu izin olmadan rsyslog ${DATA_DIR} altinda dizin/dosya
 # olusturamaz ve TUM loglar sessizce kaybolur (journal'da "Permission denied").
 # rsyslog syslog kullanicisina privilege-drop yaptigi icin dizin ona ait olmali.
-install -d -m 0755 -o syslog -g adm "${DATA_DIR}"
+install -d -m 0755 -o "${SVC_USER}" -g "${SVC_GROUP}" "${DATA_DIR}"
 if [ -d /etc/apparmor.d/local ] && [ -f /etc/apparmor.d/usr.sbin.rsyslogd ]; then
     grep -qF "  ${DATA_DIR}/** rwk," /etc/apparmor.d/local/usr.sbin.rsyslogd 2>/dev/null || \
         printf '  %s/ rw,\n  %s/** rwk,\n' "${DATA_DIR}" "${DATA_DIR}" >> /etc/apparmor.d/local/usr.sbin.rsyslogd
