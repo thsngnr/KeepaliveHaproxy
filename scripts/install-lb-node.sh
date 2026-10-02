@@ -88,6 +88,10 @@ else
 fi
 modprobe ip_vs 2>/dev/null || true
 
+echo "== $ROLE: expire_nodest_conn (IPVS'in dusen real_server'a sabitlenmis akislari kurtarmasi) =="
+cp "$HERE/lb-nodes/common/sysctl/61-ipvs-expire-nodest.conf" /etc/sysctl.d/61-ipvs-expire-nodest.conf
+sysctl --system >/dev/null 2>&1
+
 echo "== $ROLE: keepalived (kaynaktan derleme) =="
 # Ubuntu'nun apt reposundaki keepalived (ör. 24.04/26.04'te 1:2.3.4-1)
 # auth_hmac / use_vmac / vmac_xmit_base gibi bu config'in kullandığı

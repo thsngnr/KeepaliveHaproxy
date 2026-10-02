@@ -182,3 +182,14 @@ test script'inin threading deseninde.
   failover sebebi değil). Sadece HAProxy/8088 sağlığı VRRP'yi etkiler.
 - **HEC token değeri** tüm HF'lerde aynı olmalı (stanza adı farklı olabilir,
   önemli olan `token = ...` değeri).
+- **`net.ipv4.vs.expire_nodest_conn = 1`** her iki LB'de kurulu olmalı
+  (`install-lb-node.sh` bunu otomatik yapar). Olmadan: bir HF düştüğünde,
+  o HF'ye zaten bağlanmış mevcut UDP akışları (TCP değil — TCP bağlantı
+  koptuğunda client zaten yeniden bağlanmak zorunda kalır) connection-template
+  timeout'una kadar (dakikalar) o ölü HF'ye gitmeye devam eder, health-check
+  real_server'ı havuzdan çıkarmış olsa bile. Bu sysctl, kernel'e "hedefi
+  silinen akışları hemen süresiz bırak, yeni paket geldiğinde yeniden
+  zamanla" der. 2026-10-02 failover testinde ölçülen fark: olmadan etkilenen
+  akışların teslimatı kalıcı olarak %8'e düşüyordu, bununla health-check
+  tespit penceresinden (~3-9s) sonra otomatik olarak sağlıklı bir HF'ye
+  geçiyor.
