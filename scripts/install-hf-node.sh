@@ -48,6 +48,18 @@ render "$HERE/hf-nodes/systemd/lvs-realserver-vip.service" /etc/systemd/system/l
 echo "== rsyslog listener =="
 render "$HERE/hf-nodes/rsyslog.d/49-hf-syslog-listener.conf" /etc/rsyslog.d/49-hf-syslog-listener.conf
 
+echo "== /opt/data + rsyslog AppArmor izni =="
+# rsyslog'un per-source-IP dosyalari yazdigi dizin. Ubuntu'nun rsyslogd
+# AppArmor profili sadece /var/log/**'a yazmaya izin verir; bu izin
+# olmadan rsyslog /opt/data altinda dizin/dosya olusturamaz ve TUM loglar
+# sessizce kaybolur (journal'da "Permission denied" gorunur).
+install -d -m 0755 -o syslog -g adm /opt/data
+if [ -d /etc/apparmor.d/local ] && [ -f /etc/apparmor.d/usr.sbin.rsyslogd ]; then
+    grep -q '^  /opt/data/\*\* rwk,' /etc/apparmor.d/local/usr.sbin.rsyslogd 2>/dev/null || \
+        printf '  /opt/data/ rw,\n  /opt/data/** rwk,\n' >> /etc/apparmor.d/local/usr.sbin.rsyslogd
+    apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd
+fi
+
 echo "== hf-readyz health servisi (port ${READYZ_PORT}) =="
 install -d -m 0755 /opt/hf-readyz
 render "$HERE/hf-nodes/hf-readyz/readyz.py" /opt/hf-readyz/readyz.py
