@@ -69,6 +69,7 @@ scripts/
   prepare-offline-bundle.sh    # Air-gapped LB kurulumu için paket bundle'ı hazırlar
 loadtest/
   loadtest.py                  # Çoklu source-IP TCP+UDP eşzamanlı yük testi
+  loadtest_high_volume.py      # Yüksek hacimli (1M+, >200k eps) sürüm
 variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığı dosya
 ```
 
@@ -132,6 +133,36 @@ flowchart LR
 5. `loadtest/loadtest.py` ile `VIP:514` TCP/UDP'ye çoklu source-IP testi at,
    HF'lerde `/opt/data/<source-ip>/` altında doğru dosyaların oluştuğunu
    doğrula.
+
+### Yüksek hacimli yük testi (1M+, 30k+ eps)
+
+```bash
+# Önce gönderici makinede birkaç IP alias ekle (SRC_IPS listesindekiler):
+ip addr add 10.100.100.221/24 dev eth0
+ip addr add 10.100.100.222/24 dev eth0
+ip addr add 10.100.100.223/24 dev eth0
+ip addr add 10.100.100.224/24 dev eth0
+
+python3 loadtest/loadtest_high_volume.py            # 1M mesaj, varsayilan
+python3 loadtest/loadtest_high_volume.py myrun 50000 1   # ozel runid/hacim/tcp-conn
+```
+
+Bu ortamda ölçülen sonuç: ~210-230k eps gönderim, **%100 TCP + ~%99.7-99.9 UDP**
+teslimat (3 HF toplamında doğrulandı).
+
+**Kendi yük test script'ini yazarsan dikkat et:** gönderici thread'lerini
+**flat** oluştur -- hepsini önce bir listeye ekle, sonra hepsini `start()`
++ `join()` et. Bu script'i yazarken bulundu: *nested* thread spawning
+(bir "parent" thread kendi içinde yeni thread'ler yaratıp onları join
+ediyor -- örn. "her source IP için bir thread, o thread de kendi içinde
+N TCP-connection thread'i yaratıp bekliyor") Python'un GIL rekabeti
+yüzünden TCP `connect()`/`sendall()` zamanlamasını bozuyor: veri
+"gönderildi" sayılıyor (`sendall()` hata vermeden dönüyor) ama bir kısmı
+gerçekte iletilmiyor. Ölçülen etki: nested yapıda TCP teslimatı %28-33'e
+düşüyor, flat yapıyla %100'e çıkıyor (UDP ikisinde de ~%99.7-99.9 ile
+sabit -- UDP'de zaten garanti yok). Mimarinin kendisiyle **hiçbir
+ilgisi yok** -- IPVS-DR, HAProxy, rsyslog hepsi suçsuz; sorun sadece
+test script'inin threading deseninde.
 
 ## Önemli tasarım notları
 
