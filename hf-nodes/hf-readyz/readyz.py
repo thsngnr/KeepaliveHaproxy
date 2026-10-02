@@ -15,6 +15,7 @@ import os
 import shutil
 import socket
 import subprocess
+import socketserver
 import time
 import urllib.error
 import urllib.request
@@ -44,7 +45,8 @@ def _rsyslog_active():
     try:
         out = subprocess.run(
             ["systemctl", "is-active", "rsyslog"],
-            capture_output=True, text=True, timeout=2,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=2,
         )
         return out.stdout.strip() == "active", out.stdout.strip()
     except Exception as exc:
@@ -54,10 +56,14 @@ def _rsyslog_active():
 def _socket_listening(proto_flag):
     try:
         out = subprocess.run(
-            ["ss", "-H", proto_flag, "sport", "=", f":{SYSLOG_PORT}"],
-            capture_output=True, text=True, timeout=2,
+            ["ss", "-n", proto_flag, "sport", "=", f":{SYSLOG_PORT}"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=2,
         )
-        return bool(out.stdout.strip()), out.stdout.strip()[:200]
+        lines = [l for l in out.stdout.splitlines()
+                 if l.strip() and not l.lstrip().startswith(("State", "Netid"))]
+        return bool(lines), "
+".join(lines)[:200]
     except Exception as exc:
         return False, str(exc)
 
@@ -223,5 +229,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = http.server.ThreadingHTTPServer((BIND_ADDR, BIND_PORT), Handler)
+    class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+        daemon_threads = True
+        allow_reuse_address = True
+
+    server = _Server((BIND_ADDR, BIND_PORT), Handler)
     server.serve_forever()
