@@ -36,6 +36,19 @@ fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$HERE/variables.env"
 
+# Yanlis doldurulmus variables.env, VRRP'yi sessizce bozar (unicast_src_ip
+# baska makinenin IP'si olursa node'lar birbirinin advert'ini gormez ->
+# split-brain). Baslamadan once dogrula.
+if [ "$LB1_IP" = "$LB2_IP" ]; then
+    echo "HATA: LB1_IP ve LB2_IP ayni (${LB1_IP}). variables.env'i duzelt." >&2; exit 1
+fi
+if [ "$ROLE" = "lb1" ]; then OWN_IP="$LB1_IP"; else OWN_IP="$LB2_IP"; fi
+if ! ip -4 -o addr show | grep -q "inet ${OWN_IP}/"; then
+    echo "HATA: rol=${ROLE} icin beklenen IP ${OWN_IP} bu makinede tanimli degil." >&2
+    echo "      variables.env'deki LB1_IP/LB2_IP degerlerini ve bu script'e verdigin rolu (lb1|lb2) kontrol et." >&2
+    exit 1
+fi
+
 render() {
     # $1=src $2=dst -- her <PLACEHOLDER> değerini variables.env'den doldurur
     sed \
