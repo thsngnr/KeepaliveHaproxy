@@ -11,7 +11,7 @@ Kullanım:
 
 Her (source, protokol) kombinasyonu ayrı thread'de --n mesaj gönderir.
 Sonra HF'lerde doğrulama için:
-  grep -o LOADTEST_<runid> /opt/data/<source-ip>/*.log | wc -l
+  grep -o LOADTEST_<runid> /data/log/splunk/syslog/<source-ip>/*.log | wc -l
 """
 import argparse
 import socket
@@ -70,7 +70,7 @@ def main():
 
     print(f"DONE runid={runid} sources={len(sources)} per_proto={args.n} "
           f"total_sent={len(sources) * args.n * 2}")
-    print(f"Doğrulama (her HF'de): grep -o LOADTEST_{runid} /opt/data/*/*.log | wc -l")
+    print(f"Doğrulama (her HF'de): grep -o LOADTEST_{runid} /data/log/splunk/syslog/*/*.log | wc -l")
 
 
 if __name__ == "__main__":

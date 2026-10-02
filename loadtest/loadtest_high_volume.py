@@ -107,8 +107,8 @@ def main():
     eps = total / elapsed if elapsed > 0 else 0
     print(f"DONE total_sent={total} tcp={counters['tcp']} udp={counters['udp']} "
           f"elapsed={elapsed:.2f}s eps={eps:.0f}")
-    print(f"Dogrulama (her HF'de): grep -o LTHV_{RUNID}_TCP /opt/data/*/*.log | wc -l")
-    print(f"                       grep -o LTHV_{RUNID}_UDP /opt/data/*/*.log | wc -l")
+    print(f"Dogrulama (her HF'de): grep -o LTHV_{RUNID}_TCP /data/log/splunk/syslog/*/*.log | wc -l")
+    print(f"                       grep -o LTHV_{RUNID}_UDP /data/log/splunk/syslog/*/*.log | wc -l")
 
 
 if __name__ == "__main__":

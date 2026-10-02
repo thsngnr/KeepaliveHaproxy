@@ -28,6 +28,7 @@ render() {
         -e "s/<HEC_PORT>/${HEC_PORT}/g" \
         -e "s/<READYZ_PORT>/${READYZ_PORT}/g" \
         -e "s/<INDEXER_RECEIVING_PORT>/${INDEXER_RECEIVING_PORT}/g" \
+        -e "s|<DATA_DIR>|${DATA_DIR}|g" \
         "$1" > "$2"
 }
 
@@ -48,15 +49,16 @@ render "$HERE/hf-nodes/systemd/lvs-realserver-vip.service" /etc/systemd/system/l
 echo "== rsyslog listener =="
 render "$HERE/hf-nodes/rsyslog.d/49-hf-syslog-listener.conf" /etc/rsyslog.d/49-hf-syslog-listener.conf
 
-echo "== /opt/data + rsyslog AppArmor izni =="
-# rsyslog'un per-source-IP dosyalari yazdigi dizin. Ubuntu'nun rsyslogd
-# AppArmor profili sadece /var/log/**'a yazmaya izin verir; bu izin
-# olmadan rsyslog /opt/data altinda dizin/dosya olusturamaz ve TUM loglar
-# sessizce kaybolur (journal'da "Permission denied" gorunur).
-install -d -m 0755 -o syslog -g adm /opt/data
+echo "== ${DATA_DIR} + rsyslog AppArmor izni =="
+# rsyslog'un per-source-IP dosyalari yazdigi dizin (${DATA_DIR}/<kaynak-ip>/).
+# Ubuntu'nun rsyslogd AppArmor profili sadece /var/log/**'a yazmaya izin
+# verir; bu izin olmadan rsyslog ${DATA_DIR} altinda dizin/dosya
+# olusturamaz ve TUM loglar sessizce kaybolur (journal'da "Permission denied").
+# rsyslog syslog kullanicisina privilege-drop yaptigi icin dizin ona ait olmali.
+install -d -m 0755 -o syslog -g adm "${DATA_DIR}"
 if [ -d /etc/apparmor.d/local ] && [ -f /etc/apparmor.d/usr.sbin.rsyslogd ]; then
-    grep -q '^  /opt/data/\*\* rwk,' /etc/apparmor.d/local/usr.sbin.rsyslogd 2>/dev/null || \
-        printf '  /opt/data/ rw,\n  /opt/data/** rwk,\n' >> /etc/apparmor.d/local/usr.sbin.rsyslogd
+    grep -qF "  ${DATA_DIR}/** rwk," /etc/apparmor.d/local/usr.sbin.rsyslogd 2>/dev/null || \
+        printf '  %s/ rw,\n  %s/** rwk,\n' "${DATA_DIR}" "${DATA_DIR}" >> /etc/apparmor.d/local/usr.sbin.rsyslogd
     apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd
 fi
 

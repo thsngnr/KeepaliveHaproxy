@@ -10,10 +10,11 @@ User=syslog
 Group=adm
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/opt/data
+ReadWritePaths=<DATA_DIR>
 # Only lb1/lb2 (the keepalived MISC_CHECK / haproxy httpchk sources) plus
 # localhost may query this. Edit to match your LB IPs.
 Environment=READYZ_ALLOWED_CLIENTS=<LB1_IP>,<LB2_IP>,127.0.0.1,::1
+Environment=READYZ_DATA_DIR=<DATA_DIR>
 
 [Install]
 WantedBy=multi-user.target

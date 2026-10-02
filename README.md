@@ -131,7 +131,7 @@ flowchart LR
 4. `ipvsadm -L -n` (her iki LB'de) ve `systemctl status keepalived haproxy`
    ile doğrula.
 5. `loadtest/loadtest.py` ile `VIP:514` TCP/UDP'ye çoklu source-IP testi at,
-   HF'lerde `/opt/data/<source-ip>/` altında doğru dosyaların oluştuğunu
+   HF'lerde `/data/log/splunk/syslog/<source-ip>/` altında doğru dosyaların oluştuğunu
    doğrula.
 
 ### Yüksek hacimli yük testi (1M+, 30k+ eps)

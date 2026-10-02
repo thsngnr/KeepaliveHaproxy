@@ -23,7 +23,7 @@ import threading
 
 BIND_ADDR = os.environ.get("READYZ_BIND", "0.0.0.0")
 BIND_PORT = int(os.environ.get("READYZ_PORT", "9099"))
-DATA_DIR = os.environ.get("READYZ_DATA_DIR", "/opt/data")
+DATA_DIR = os.environ.get("READYZ_DATA_DIR", "/data/log/splunk/syslog")
 DISK_FREE_PCT_MIN = float(os.environ.get("READYZ_DISK_FREE_PCT_MIN", "10"))
 SPLUNKD_PORT = int(os.environ.get("READYZ_SPLUNKD_PORT", "8089"))
 HEC_PORT = int(os.environ.get("READYZ_HEC_PORT", "8088"))
@@ -98,7 +98,7 @@ def _hec_healthy():
 
 def _synthetic_ok():
     # Optional end-to-end probe: sends a UDP syslog line to localhost and
-    # confirms it lands on disk under /opt/data/127.0.0.1/. Off by default
+    # confirms it lands on disk under <DATA_DIR>/127.0.0.1/. Off by default
     # (READYZ_SYNTHETIC_CHECK=1 to enable) -- cheap checks above are usually
     # enough, this catches silent ingest-pipeline breakage.
     if not SYNTHETIC_ENABLED:
