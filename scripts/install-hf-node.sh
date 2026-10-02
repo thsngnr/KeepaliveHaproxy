@@ -7,6 +7,8 @@
 # Splunk'ın HEC token'ı ve outputs.conf/inputs.conf'un ilgili kısımlarını
 # bu script OTOMATİK yazmaz (Splunk config'ine dokunmak hassas) -- sadece
 # doldurulmuş snippet'i bastırır, sen elle ekleyip splunk'ı restart edersin.
+# source ile calistirilirsa set -e/exit mevcut shell'i oldurur -- bash ile calistir.
+(return 0 2>/dev/null) && { echo "HATA: bu script source edilmemeli. Calistir: bash scripts/install-hf-node.sh" >&2; return 1; }
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,7 +43,7 @@ fi
 echo "== VIP loopback alias (DR) + ARP suppression =="
 render "$HERE/hf-nodes/sysctl.d/60-lvs-dr-realserver.conf" /tmp/60-lvs-dr-realserver.conf
 sed -i "s/eth0/${PRIMARY_IF}/g" /tmp/60-lvs-dr-realserver.conf
-mv /tmp/60-lvs-dr-realserver.conf /etc/sysctl.d/60-lvs-dr-realserver.conf
+mv -f /tmp/60-lvs-dr-realserver.conf /etc/sysctl.d/60-lvs-dr-realserver.conf
 sysctl --system >/dev/null
 
 render "$HERE/hf-nodes/systemd/lvs-realserver-vip.service" /etc/systemd/system/lvs-realserver-vip.service
