@@ -193,3 +193,13 @@ test script'inin threading deseninde.
   akışların teslimatı kalıcı olarak %8'e düşüyordu, bununla health-check
   tespit penceresinden (~3-9s) sonra otomatik olarak sağlıklı bir HF'ye
   geçiyor.
+
+- **`USE_VMAC` (variables.env, varsayılan `no`).** keepalived VRRP sanal MAC'i
+  (`use_vmac vrrp200`) kapalıyken VIP, `VRRP_INTERFACE` üzerinde VM'in gerçek
+  MAC'iyle yayınlanır; failover'da gratuitous ARP kullanılır. **VMware ESXi'de
+  port group "Forged Transmits" / "MAC Address Changes" = Reject ise sanal MAC
+  (`00:00:5e:00:01:xx`) çıkışta düşürülür**: keepalived ARP cevabını üretir
+  ama istemci hiç almaz, VIP dışarıdan ping/ARP almaz (tcpdump'ta reply
+  görünür ama karşı taraf alamaz). Bu durumda `USE_VMAC=no` bırak. Altyapı
+  sanal MAC'e izin veriyorsa (Proxmox, ESXi'de Accept) `yes` yapılabilir.
+  `install-lb-node.sh` değeri uygular ve eski `vrrp200` arayüzünü temizler.

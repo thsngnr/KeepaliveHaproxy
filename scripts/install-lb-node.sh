@@ -154,7 +154,18 @@ if [ ! -f /etc/keepalived/keys/vrrp200 ]; then
          "(bir node'da üret, diğerine kopyala), sonra bu script'i tekrar çalıştır." >&2
     exit 1
 fi
+systemctl stop keepalived 2>/dev/null || true
+ip link del vrrp200 2>/dev/null || true   # eski kurulumdan kalan VMAC arayuzu
 render "$HERE/lb-nodes/$ROLE/keepalived/keepalived.conf" /etc/keepalived/keepalived.conf
+# Sanal MAC opsiyonel: ESXi "Forged Transmits/MAC Changes" Reject ise VMAC
+# cikista dusurulur (bkz. variables.env USE_VMAC).
+if [ "${USE_VMAC:-no}" = "yes" ]; then
+    sed -i 's/^    #VMAC# /    /' /etc/keepalived/keepalived.conf
+    echo "VRRP sanal MAC (use_vmac) ACIK"
+else
+    sed -i '/^    #VMAC# /d' /etc/keepalived/keepalived.conf
+    echo "VRRP sanal MAC KAPALI -- VIP ${VRRP_INTERFACE} uzerinde, gercek MAC ile"
+fi
 
 echo "== $ROLE: config doğrulama =="
 haproxy -c -f /etc/haproxy/haproxy.cfg
