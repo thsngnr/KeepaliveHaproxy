@@ -40,6 +40,7 @@ render() {
     # $1=src $2=dst -- her <PLACEHOLDER> değerini variables.env'den doldurur
     sed \
         -e "s/<VIP_IP>/${VIP_IP}/g" \
+        -e "s/<VIP_PREFIX>/${VIP_PREFIX:-32}/g" \
         -e "s/<LB1_IP>/${LB1_IP}/g" \
         -e "s/<LB2_IP>/${LB2_IP}/g" \
         -e "s/<LB1_ROUTER_ID>/${LB1_ROUTER_ID}/g" \
