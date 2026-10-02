@@ -41,6 +41,7 @@ render() {
         -e "s/<READYZ_PORT>/${READYZ_PORT}/g" \
         -e "s/<INDEXER_RECEIVING_PORT>/${INDEXER_RECEIVING_PORT}/g" \
         -e "s|<DATA_DIR>|${DATA_DIR}|g" \
+        -e "s/<HEC_SSL>/${HEC_SSL:-0}/g" \
         -e "s/<SVC_USER>/${SVC_USER}/g" \
         -e "s/<SVC_GROUP>/${SVC_GROUP}/g" \
         "$1" > "$2"

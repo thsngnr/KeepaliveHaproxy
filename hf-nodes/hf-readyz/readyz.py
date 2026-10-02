@@ -14,6 +14,7 @@ import json
 import os
 import shutil
 import socket
+import ssl
 import subprocess
 import socketserver
 import time
@@ -28,6 +29,7 @@ DATA_DIR = os.environ.get("READYZ_DATA_DIR", "/data/log/splunk/syslog")
 DISK_FREE_PCT_MIN = float(os.environ.get("READYZ_DISK_FREE_PCT_MIN", "10"))
 SPLUNKD_PORT = int(os.environ.get("READYZ_SPLUNKD_PORT", "8089"))
 HEC_PORT = int(os.environ.get("READYZ_HEC_PORT", "8088"))
+HEC_SCHEME = "https" if os.environ.get("READYZ_HEC_SSL", "0") == "1" else "http"
 SYSLOG_PORT = int(os.environ.get("READYZ_SYSLOG_PORT", "514"))
 SYNTHETIC_ENABLED = os.environ.get("READYZ_SYNTHETIC_CHECK", "0") == "1"
 SYNTHETIC_INTERVAL = float(os.environ.get("READYZ_SYNTHETIC_INTERVAL", "30"))
@@ -91,9 +93,13 @@ def _splunkd_reachable():
 def _hec_healthy():
     # Splunk's HEC health endpoint needs no token and reflects whether the
     # HEC input itself (not just the TCP port) is actually accepting data.
-    url = f"http://127.0.0.1:{HEC_PORT}/services/collector/health"
+    url = f"{HEC_SCHEME}://127.0.0.1:{HEC_PORT}/services/collector/health"
+    ctx = None
+    if HEC_SCHEME == "https":
+        # localhost health probe: Splunk varsayilan sertifikasi self-signed
+        ctx = ssl._create_unverified_context()
     try:
-        with urllib.request.urlopen(url, timeout=1.5) as resp:
+        with urllib.request.urlopen(url, timeout=1.5, context=ctx) as resp:
             return resp.status == 200, f"http {resp.status}"
     except urllib.error.HTTPError as exc:
         return False, f"http {exc.code}"
