@@ -79,6 +79,9 @@ while IFS="|" read -r name overrides; do
     done < /out/templates
     echo "ok [$name] $(ls /out/$name | wc -l) dosya"
 done < /out/variants
+# Konteyner root olarak yazdi; Linux host'ta (CI) script sonraki adimlarda bu
+# dizinlere yazip en sonda silebilsin (macOS Docker Desktop bunu gizler).
+chmod -R a+rwX /out
 exit $fail'
 
 step "4/7 haproxy -c (haproxy:3.4)"
