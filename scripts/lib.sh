@@ -35,6 +35,9 @@ load_vars() {
     : "${SYSLOG_UDP_RMEM_BYTES:=33554432}"
     : "${READYZ_DISK_FREE_PCT_MIN:=10}"
     : "${READYZ_DISK_FREE_MB_MIN:=0}"
+    : "${ALERT_SITE_NAME:=}"
+    : "${SLACK_WEBHOOK_URL:=}"
+    : "${SLACK_PROXY:=}"
 
     # Geriye uyumluluk: HF_NODES yoksa eski HF1..HF3_NAME/IP'den olustur.
     if [ -z "${HF_NODES:-}" ]; then

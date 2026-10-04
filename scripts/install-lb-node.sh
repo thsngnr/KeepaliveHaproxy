@@ -141,11 +141,32 @@ else
     echo "HEC: mode http, X-Splunk-Request-Channel bazli yapiskanlik"
 fi
 
-echo "== $ROLE: check_haproxy.sh / check_hf_ready.sh =="
-render "$HERE/lb-nodes/common/keepalived/check_haproxy.sh" /etc/keepalived/check_haproxy.sh
-render "$HERE/lb-nodes/common/keepalived/check_hf_ready.sh" /etc/keepalived/check_hf_ready.sh
-chmod 700 /etc/keepalived/check_haproxy.sh /etc/keepalived/check_hf_ready.sh
-chown root:root /etc/keepalived/check_haproxy.sh /etc/keepalived/check_hf_ready.sh
+echo "== $ROLE: check_haproxy.sh / check_hf_ready.sh / notify.sh =="
+KA_SCRIPTS=(/etc/keepalived/check_haproxy.sh /etc/keepalived/check_hf_ready.sh /etc/keepalived/notify.sh)
+for s in "${KA_SCRIPTS[@]}"; do
+    render "$HERE/lb-nodes/common/keepalived/$(basename "$s")" "$s"
+done
+chmod 700 "${KA_SCRIPTS[@]}"
+chown root:root "${KA_SCRIPTS[@]}"
+
+echo "== $ROLE: Slack bildirimi =="
+# Webhook URL bir sir: render edilen script'lere girmez, sadece root okuyabilir.
+install -d -m 0700 -o root -g root /etc/keepalived/keys
+if [ -n "$SLACK_WEBHOOK_URL" ]; then
+    install -m 0600 -o root -g root /dev/null /etc/keepalived/keys/slack-webhook
+    printf '%s\n' "$SLACK_WEBHOOK_URL" > /etc/keepalived/keys/slack-webhook
+fi
+if [ -n "$SLACK_PROXY" ]; then
+    install -m 0600 -o root -g root /dev/null /etc/keepalived/keys/slack-proxy
+    printf '%s\n' "$SLACK_PROXY" > /etc/keepalived/keys/slack-proxy
+else
+    rm -f /etc/keepalived/keys/slack-proxy
+fi
+if [ -s /etc/keepalived/keys/slack-webhook ]; then
+    echo "Slack ACIK. Test: /etc/keepalived/notify.sh INSTANCE test MASTER 0"
+else
+    echo "Slack KAPALI (webhook yok) -- bildirimler sadece syslog'a (keepalived-notify)"
+fi
 
 echo "== $ROLE: keepalived.conf =="
 if [ ! -f /etc/keepalived/keys/vrrp200 ]; then

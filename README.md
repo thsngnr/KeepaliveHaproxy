@@ -53,6 +53,7 @@ lb-nodes/
     haproxy/haproxy.cfg
     keepalived/check_haproxy.sh
     keepalived/check_hf_ready.sh
+    keepalived/notify.sh          # VRRP/HF durum bildirimi (syslog + Slack)
   lb1/keepalived/keepalived.conf   # lb1'e özel (priority, unicast_src_ip)
   lb2/keepalived/keepalived.conf   # lb2'ye özel
 hf-nodes/                      # Her HF node'da BİREBİR aynı dosyalar
@@ -221,6 +222,16 @@ test script'inin threading deseninde.
   `check_hf_ready.sh <ip> tcp|udp` → `/readyz/syslog` (rsyslog, listener'lar,
   disk) ile kontrol edilir, havuz başına ayrı rise sayacı tutulur; TCP ayrıca
   `TCP_CHECK`'i korur. Diski dolan bir HF iki havuzdan birden çıkar.
+- **Durum bildirimleri (Slack).** keepalived `notify.sh`'ı çağırır: VRRP
+  geçişleri (MASTER/BACKUP/FAULT), bir HF'nin syslog TCP/UDP havuzuna girip
+  çıkması ve havuzda **hiç HF kalmaması** (KRİTİK). Her olay syslog'a
+  (`keepalived-notify` tag'i) yazılır; `/etc/keepalived/keys/slack-webhook`
+  varsa Slack'e de gider (5 sn zaman aşımı, arka planda — keepalived'i
+  bekletmez). HF olaylarını sadece VIP'i tutan LB gönderir (çift mesaj olmaz).
+  `ALERT_SITE_NAME` birden fazla kurulum aynı kanala yazıyorsa mesajda siteyi
+  gösterir; LB'ler internete çıkamıyorsa `SLACK_PROXY`. Webhook URL'i bir
+  sırdır: `variables.env`'i doldurulmuş haliyle commit etme ya da dosyayı LB'de
+  elle oluştur.
 - **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — tüm HF'lerin syslog
   tarafı düşse bile VIP/VRRP failover tetiklenmez (bu bir alerting durumu,
   failover sebebi değil). Sadece HAProxy/8088 sağlığı VRRP'yi etkiler.
