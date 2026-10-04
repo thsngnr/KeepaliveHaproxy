@@ -226,6 +226,13 @@ test script'inin threading deseninde.
   `check_hf_ready.sh <ip> tcp|udp` → `/readyz/syslog` (rsyslog, listener'lar,
   disk) ile kontrol edilir, havuz başına ayrı rise sayacı tutulur; TCP ayrıca
   `TCP_CHECK`'i korur. Diski dolan bir HF iki havuzdan birden çıkar.
+- **readyz sentetik kontrol (opsiyonel, `READYZ_SYNTHETIC_CHECK=1`).**
+  Varsayılan kapalı. Açıkken readyz her `READYZ_SYNTHETIC_INTERVAL` saniyede
+  bir `127.0.0.1:514`'e test satırı gönderir ve rsyslog'un onu gerçekten
+  `<DATA_DIR>/127.0.0.1/` altına yazdığını doğrular; yazmadıysa HF syslog
+  havuzundan çıkar. "rsyslog çalışıyor, port açık ama diske yazmıyor" (izin,
+  SELinux/AppArmor, bozuk template) durumunu yakalar. Test satırları Splunk'a
+  gitmez (monitor stanza'sında `127.0.0.1` dizini `blacklist`'te).
 - **Durum izleme ve bildirim (Splunk + opsiyonel Slack).** İki kaynak:
   - *keepalived `notify.sh`* (anlık): VRRP geçişleri (MASTER/BACKUP/FAULT), bir
     HF'nin syslog TCP/UDP havuzuna girip çıkması, havuzda **hiç HF kalmaması**.

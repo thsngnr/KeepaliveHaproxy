@@ -6,13 +6,18 @@
 # host_segment: dosya yolu <DATA_DIR>/<kaynak-ip>/<dosya>.log; <kaynak-ip>
 # yolun <HOST_SEGMENT>. parcasi oldugu icin host alani HF'nin adi yerine
 # gercek syslog kaynak IP'si olur (install-hf-node.sh DATA_DIR'dan hesaplar).
-# whitelist: readyz'nin <DATA_DIR> altina yazdigi gecici probe dosyalarini disarida tutar.
+# whitelist: readyz'nin <DATA_DIR> altina yazdigi gecici disk probe dosyalarini disarida tutar.
+# blacklist: <DATA_DIR>/127.0.0.1/ -- HF'nin kendi kendine (localhost) gonderdigi
+# syslog; readyz sentetik kontrolunun (READYZ_SYNTHETIC_CHECK) test satirlari
+# buraya yazilir ve indexlenmemeli. Gercek kaynaklar uzak cihazlar oldugu icin
+# bir sey kaybolmaz.
 [monitor://<DATA_DIR>]
 disabled = false
 sourcetype = syslog
 index = <SYSLOG_INDEX>
 host_segment = <HOST_SEGMENT>
 whitelist = \.log$
+blacklist = /127\.0\.0\.1/
 
 [http]
 disabled = 0

@@ -139,11 +139,31 @@ def _hec_healthy():
         return False, str(exc)
 
 
+def _mtime(path):
+    # hf-syslog-cleanup may delete a file between listdir() and stat()
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0.0
+
+
+def _tail_has(path, marker, nbytes=8192):
+    # Only the end of the file: the marker was just written, and quarter-hour
+    # files can be large if anything else on the host logs to localhost.
+    with open(path, "rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        fh.seek(max(0, fh.tell() - nbytes))
+        return marker.encode() in fh.read()
+
+
 def _synthetic_ok():
-    # Optional end-to-end probe: sends a UDP syslog line to localhost and
-    # confirms it lands on disk under <DATA_DIR>/127.0.0.1/. Off by default
-    # (READYZ_SYNTHETIC_CHECK=1 to enable) -- cheap checks above are usually
-    # enough, this catches silent ingest-pipeline breakage.
+    # Optional end-to-end probe (READYZ_SYNTHETIC_CHECK=1 in variables.env,
+    # default off): sends a UDP syslog line to localhost and confirms rsyslog
+    # actually wrote it under <DATA_DIR>/127.0.0.1/. Catches "rsyslog up and
+    # listening but not writing" (permissions, SELinux/AppArmor, broken
+    # template) that the cheap checks above miss. The 127.0.0.1 directory is
+    # blacklisted in the Splunk monitor stanza, so these probe lines are never
+    # indexed; hf-syslog-cleanup removes them with the rest.
     if not SYNTHETIC_ENABLED:
         return True, "disabled"
 
@@ -155,25 +175,28 @@ def _synthetic_ok():
         marker = f"READYZ-{uuid.uuid4().hex}"
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.sendto(f"<134>{marker}\n".encode(), ("127.0.0.1", SYSLOG_PORT))
+            # The "readyz:" tag is required: a bare "<134>READYZ-..." is parsed
+            # by rsyslog as HOSTNAME with an empty message, so the marker would
+            # never reach the file and every HF would be reported not ready.
+            sock.sendto(f"<134>readyz: {marker}\n".encode(), ("127.0.0.1", SYSLOG_PORT))
             sock.close()
-            today_dir = os.path.join(DATA_DIR, "127.0.0.1")
+            probe_dir = os.path.join(DATA_DIR, "127.0.0.1")
             deadline = now + 2.0
             found = False
-            while time.time() < deadline:
-                if os.path.isdir(today_dir):
-                    for fname in os.listdir(today_dir):
-                        path = os.path.join(today_dir, fname)
+            while time.time() < deadline and not found:
+                if os.path.isdir(probe_dir):
+                    paths = [os.path.join(probe_dir, f) for f in os.listdir(probe_dir)]
+                    # newest two: the marker lands in the current quarter-hour
+                    # file (or the next one right at a quarter boundary)
+                    for path in sorted(paths, key=_mtime, reverse=True)[:2]:
                         try:
-                            with open(path, "r", errors="ignore") as fh:
-                                if marker in fh.read()[-4096:]:
-                                    found = True
-                                    break
-                        except Exception:
+                            if _tail_has(path, marker):
+                                found = True
+                                break
+                        except OSError:
                             continue
-                if found:
-                    break
-                time.sleep(0.2)
+                if not found:
+                    time.sleep(0.2)
             _synthetic_cache.update(ts=now, ok=found, detail="landed" if found else "not found")
             return found, _synthetic_cache["detail"]
         except Exception as exc:
