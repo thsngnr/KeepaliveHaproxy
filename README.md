@@ -54,6 +54,7 @@ lb-nodes/
     keepalived/check_haproxy.sh
     keepalived/check_hf_ready.sh
     keepalived/notify.sh          # VRRP/HF anlık olay bildirimi (syslog + HEC + ops. Slack)
+    sysctl/61-ipvs-expire-nodest.conf  # düşen HF'ye sabitlenmiş IPVS akışlarını bırak
     status/lb-status.py           # periyodik durum kontrolü/raporu (+ systemd timer'ları)
   lb1/keepalived/keepalived.conf   # lb1'e özel (priority, unicast_src_ip)
   lb2/keepalived/keepalived.conf   # lb2'ye özel
@@ -68,7 +69,8 @@ hf-nodes/                      # Her HF node'da BİREBİR aynı dosyalar
   systemd/hf-syslog-cleanup.{service,timer}  # ceyreklik retention temizligi
   cleanup/hf-syslog-cleanup.sh
   hf-readyz/readyz.py
-  splunk/inputs.conf.snippet
+  splunk/inputs.conf.snippet       # monitor + HEC (install sonunda doldurulmuş basılır)
+  splunk/deploymentclient.conf     # DS hedefi (DS_IP, boşsa INDEXER_IP)
 scripts/
   install-lb-node.sh           # LB node'a dosyaları kurar + servisleri başlatır
   install-hf-node.sh           # HF node'a dosyaları kurar + servisleri başlatır
@@ -78,6 +80,7 @@ scripts/
 loadtest/
   loadtest.py                  # Çoklu source-IP TCP+UDP eşzamanlı yük testi
   loadtest_high_volume.py      # Yüksek hacimli (1M+, >200k eps) sürüm
+  loadtest_tcp.py              # Sadece TCP, parametreli (bağlantı/mesaj sayısı)
 variables.env                  # ŞABLON: tüm değişkenler + örnek değerler (gerçek değer yazma)
 variables.env.local            # gerçek değerler (sen oluşturursun, .gitignore'da)
 ```
@@ -94,7 +97,9 @@ variables.env.local            # gerçek değerler (sen oluşturursun, .gitignor
   açıksa 514/tcp+udp, HEC ve readyz portları kapalıysa uyarır (otomatik açmaz).
 - Tüm host'larda: `rsyslog`, `haproxy` (sadece lb'lerde), `keepalived` (sadece
   lb'lerde), `ipvsadm`+`ip_vs` kernel modülü (lb'lerde), Python 3 (hf'lerde).
-- Splunk'ta bir HEC token (tüm HF'lerde **aynı token değeri**, enableSSL=0).
+- Splunk'ta bir HEC token (tüm HF'lerde **aynı token değeri**). HEC düz HTTP
+  (`HEC_SSL=0`, varsayılan) veya HTTPS (`HEC_SSL=1`, TLS HAProxy'den geçirilir);
+  HF'lerdeki `enableSSL` aynı değerde olmalı.
 
 ### LB'ler internete çıkamıyorsa (air-gapped)
 
@@ -295,7 +300,10 @@ test script'inin threading deseninde.
 - **Deployment Server yönlendirme (opsiyonel, `DS_IP`).** `variables.env`'de
   `DS_IP` doldurulursa HAProxy `<VIP>:DS_LISTEN_PORT` (varsayılan 8089)
   bağlantılarını `DS_IP:DS_PORT`'a (`mode tcp`, TLS geçirilir) iletir; böylece
-  UF/HF'lerin `deploymentclient.conf` `targetUri`'si VIP olabilir. `DS_IP` boş
+  UF'lerin (ve VIP'e ulaşan diğer istemcilerin) `deploymentclient.conf`
+  `targetUri`'si VIP olabilir. **HF'ler hariç:** VIP her HF'nin `lo`
+  arayüzünde tanımlı (IPVS-DR), HF'den VIP'e giden bağlantı LB'ye çıkmaz;
+  HF'ler DS'ye doğrudan bağlanır (`hf-nodes/splunk/deploymentclient.conf`). `DS_IP` boş
   bırakılırsa (varsayılan) haproxy.cfg'ye hiçbir şey eklenmez. DS istemcileri LB
   IP'si olarak görür (proxy); kimlik GUID/hostname ile tutulur. Tek hedef
   olduğundan HA sağlamaz, sadece sabit giriş adresi verir.
