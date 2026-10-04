@@ -81,6 +81,10 @@ variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığ
   birbirine unicast VRRP ulaşabiliyor olmalı.
 - **hf1, hf2, hf3**: Splunk kurulu (Heavy Forwarder rolü), aynı L2 subnet'te
   (IPVS-DR aynı broadcast domain gerektirir — router arkasında olamaz).
+  Ubuntu/Debian veya RHEL 7/8/9 ailesi; rsyslog ≥ 8.24 (RHEL 7'nin sürümü).
+  `install-hf-node.sh` Ubuntu'da AppArmor'a, SELinux açıksa `DATA_DIR`'e
+  `var_log_t` etiketi (`semanage fcontext` + `restorecon`) verir. firewalld
+  açıksa 514/tcp+udp, HEC ve readyz portları kapalıysa uyarır (otomatik açmaz).
 - Her 5 host'ta: `rsyslog`, `haproxy` (sadece lb'lerde), `keepalived` (sadece
   lb'lerde), `ipvsadm`+`ip_vs` kernel modülü (lb'lerde), Python 3 (hf'lerde).
 - Splunk'ta bir HEC token (tüm HF'lerde **aynı token değeri**, enableSSL=0).

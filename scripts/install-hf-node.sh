@@ -72,6 +72,12 @@ echo "== paketler =="
 if command -v apt-get >/dev/null; then
     apt-get update -qq
     apt-get install -y rsyslog python3
+elif command -v dnf >/dev/null; then
+    # RHEL 8+/Rocky/Alma: semanage policycoreutils-python-utils icinde
+    dnf install -y rsyslog python3 policycoreutils-python-utils
+elif command -v yum >/dev/null; then
+    # RHEL/CentOS 7: semanage policycoreutils-python icinde
+    yum install -y rsyslog python3 policycoreutils-python
 fi
 
 echo "== VIP loopback alias (DR) + ARP suppression =="
@@ -124,6 +130,23 @@ if [ -d /etc/apparmor.d/local ] && [ -f /etc/apparmor.d/usr.sbin.rsyslogd ]; the
         printf '  %s/ rw,\n  %s/** rwk,\n' "${DATA_DIR}" "${DATA_DIR}" >> /etc/apparmor.d/local/usr.sbin.rsyslogd
     apparmor_parser -r /etc/apparmor.d/usr.sbin.rsyslogd
 fi
+# RHEL ailesi: AppArmor yerine SELinux. rsyslogd (rsyslogd_t) sadece log
+# tiplerine (var_log_t vb.) yazabilir; /data altinda olusturulan dizin
+# default_t etiketi alir ve rsyslog oraya yazamaz -- yine TUM loglar sessizce
+# kaybolur (audit.log'da AVC denied). DATA_DIR'e kalici var_log_t etiketi ver.
+# Splunk (unconfined) ve hf-readyz / cleanup servisleri bu etiketi okuyup
+# yazabilir. 514/tcp+udp zaten syslogd_port_t, port etiketi gerekmez.
+if command -v selinuxenabled >/dev/null && selinuxenabled; then
+    command -v semanage >/dev/null || {
+        echo "HATA: SELinux acik ama semanage yok (policycoreutils-python[-utils] kur)" >&2; exit 1; }
+    if semanage fcontext -l | grep -qF "${DATA_DIR}(/.*)?"; then
+        semanage fcontext -m -t var_log_t "${DATA_DIR}(/.*)?"
+    else
+        semanage fcontext -a -t var_log_t "${DATA_DIR}(/.*)?"
+    fi
+    restorecon -R "${DATA_DIR}"
+    echo "SELinux: ${DATA_DIR} -> var_log_t ($(stat -c %C "${DATA_DIR}"))"
+fi
 
 echo "== hf-readyz health servisi (port ${READYZ_PORT}) =="
 install -d -m 0755 /opt/hf-readyz
@@ -155,6 +178,14 @@ if [ "$SYSLOG_RETENTION_HOURS" -gt 0 ]; then
     systemctl list-timers hf-syslog-cleanup.timer --no-pager || true
 fi
 ip addr show lo | grep "${VIP_IP}" || echo "UYARI: VIP lo'ya eklenmedi, kontrol et"
+# RHEL'de firewalld varsayilan acik: syslog/HEC/readyz portlari kapaliysa LB'ler
+# HF'ye ulasamaz. Guvenlik duvarini otomatik degistirmiyoruz, sadece uyariyoruz.
+if command -v firewall-cmd >/dev/null && systemctl is-active -q firewalld; then
+    for p in "${SYSLOG_PORT}/tcp" "${SYSLOG_PORT}/udp" "${HEC_PORT}/tcp" "${READYZ_PORT}/tcp"; do
+        firewall-cmd -q --query-port="$p" || \
+            echo "UYARI: firewalld ${p} kapali. Ac: firewall-cmd --permanent --add-port=${p} && firewall-cmd --reload"
+    done
+fi
 curl -s "http://127.0.0.1:${READYZ_PORT}/readyz/syslog" | head -c 300; echo
 echo
 echo "== Splunk tarafı (ELLE YAP) =="
