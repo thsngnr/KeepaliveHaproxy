@@ -5,13 +5,15 @@ Persistent TCP baglantilari + batch write. Thread'ler FLAT olusturulur
 (bkz. loadtest_high_volume.py'deki threading notu).
 
 Kullanim:
-  python3 loadtest_tcp.py --vip 10.10.42.210 [--port 514] [--sources IP1,IP2,..]
+  python3 loadtest_tcp.py --vip 192.0.2.50 [--port 514] [--sources IP1,IP2,..]
                           [--conns 2] [--per-conn 50000] [--runid X] [--batch 200]
 
 --sources verilmezse OS kendi kaynak IP'sini secer (tek kaynak IP). Verilirse
 her IP gondericide tanimli olmalidir (ip addr add <ip>/<prefix> dev <iface>).
 Toplam mesaj = len(sources) * conns * per-conn.
-Her satir: <130>LTTCP_<RUNID>_<src>_<conn>_<i> payload...
+Her satir: <134>lttcp: LTTCP_<RUNID>_<src>_<conn>_<i> payload...
+("lttcp:" etiketi sart: etiketsiz "<134>LTTCP_..." satirinda rsyslog marker'i
+HOSTNAME sanip mesajdan atar, asagidaki grep sayimi hep 0 cikar.)
 HF'lerde sayim: grep -ho "LTTCP_<RUNID>_" <DATA_DIR>/*/*.log | wc -l
 """
 import argparse
@@ -45,7 +47,7 @@ def worker(slot, src, idx):
         s.connect((a.vip, a.port))
         buf = []
         for i in range(a.per_conn):
-            buf.append("<134>LTTCP_%s_%s_%d_%d %s\n" % (a.runid, tag, idx, i, PAD))
+            buf.append("<134>lttcp: LTTCP_%s_%s_%d_%d %s\n" % (a.runid, tag, idx, i, PAD))
             if len(buf) >= a.batch:
                 s.sendall("".join(buf).encode())
                 sent[slot] += len(buf)

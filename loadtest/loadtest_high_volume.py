@@ -2,9 +2,9 @@
 """Yuksek hacimli (1M+), coklu source-IP TCP+UDP syslog yuk testi.
 
 loadtest.py'nin daha agresif versiyonu: persistent TCP baglantilari +
-batch write ile >200k eps gonderim hizina ulasir. Varsayilan: 5 source
-IP, IP+protokol basina 100,000 mesaj (toplam 1,000,000 -- 500k TCP +
-500k UDP).
+batch write ile >200k eps gonderim hizina ulasir. Varsayilan: --sources'taki
+her IP, IP+protokol basina 100,000 mesaj (5 kaynakla toplam 1,000,000 --
+500k TCP + 500k UDP).
 
 ONEMLI -- THREADING DERSI (bu script'i yazarken bulundu, 2026-10-02):
 Tum gonderici thread'lerini FLAT olustur: hepsini ayni dongude yarat,
@@ -20,25 +20,34 @@ bu yuzden TUM thread'leri (TCP+UDP, her kaynak icin) once bir listeye
 ekleyip SONRA hepsini start/join ediyor -- bu deseni degistirme.
 
 Kullanim:
-  python3 loadtest_high_volume.py [runid] [per_ip_per_proto] [tcp_conns_per_ip]
-  python3 loadtest_high_volume.py                 # varsayilan 100000/2
-  python3 loadtest_high_volume.py myrun 50000 1
+  python3 loadtest_high_volume.py --vip <VIP> --sources IP1,IP2,.. [runid] [per_ip_per_proto] [tcp_conns_per_ip]
+  python3 loadtest_high_volume.py --vip 192.0.2.50 --sources 192.0.2.231,192.0.2.232
+  python3 loadtest_high_volume.py --vip 192.0.2.50 --sources 192.0.2.231 myrun 50000 1
+
+--sources'taki her IP gonderici makinede tanimli olmali, ornegin:
+  ip addr add 192.0.2.231/24 dev eth0
 """
+import argparse
 import socket
-import sys
 import threading
 import time
 
-RUNID = sys.argv[1] if len(sys.argv) > 1 else str(int(time.time()))
-PER_IP_PER_PROTO = int(sys.argv[2]) if len(sys.argv) > 2 else 100000
-TCP_CONNS_PER_IP = int(sys.argv[3]) if len(sys.argv) > 3 else 2
+ap = argparse.ArgumentParser(description="Yuksek hacimli coklu source-IP syslog yuk testi")
+ap.add_argument("--vip", required=True, help="hedef VIP (variables.env VIP_IP)")
+ap.add_argument("--port", type=int, default=514)
+ap.add_argument("--sources", required=True,
+                help="virgulle ayrilmis kaynak IP'ler (gondericide alias olarak tanimli)")
+ap.add_argument("runid", nargs="?", default=str(int(time.time())))
+ap.add_argument("per_ip_per_proto", nargs="?", type=int, default=100000)
+ap.add_argument("tcp_conns_per_ip", nargs="?", type=int, default=2)
+_a = ap.parse_args()
 
-VIP = "10.100.100.200"
-PORT = 514
-# Bu IP'lerin gonderici makinede alias olarak eklenmis olmasi gerekir, ornegin:
-#   ip addr add 10.100.100.221/24 dev eth0
-SRC_IPS = ["10.100.100.195", "10.100.100.221", "10.100.100.222",
-           "10.100.100.223", "10.100.100.224"]
+RUNID = _a.runid
+PER_IP_PER_PROTO = _a.per_ip_per_proto
+TCP_CONNS_PER_IP = _a.tcp_conns_per_ip
+VIP = _a.vip
+PORT = _a.port
+SRC_IPS = [ip.strip() for ip in _a.sources.split(",") if ip.strip()]
 TCP_BATCH = 500
 
 counters = {"tcp": 0, "udp": 0}

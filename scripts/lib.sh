@@ -25,6 +25,9 @@ load_vars() {
     : "${DS_IP:=}"
     : "${DS_PORT:=8089}"
     : "${DS_LISTEN_PORT:=8089}"
+    # HF'lerin deploymentclient.conf hedefi: VIP olamaz (VIP HF'lerin lo'sunda)
+    # shellcheck disable=SC2034  # deploymentclient.conf render eder
+    HF_DEPLOYMENT_SERVER="${DS_IP:-${INDEXER_IP:-}}"
     : "${SYSLOG_INDEX:=main}"
     : "${SYSLOG_RETENTION_HOURS:=5}"
     : "${SYSLOG_QUEUE_SIZE:=100000}"

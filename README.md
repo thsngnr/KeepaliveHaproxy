@@ -150,14 +150,15 @@ flowchart LR
 ### Yüksek hacimli yük testi (1M+, 30k+ eps)
 
 ```bash
-# Önce gönderici makinede birkaç IP alias ekle (SRC_IPS listesindekiler):
-ip addr add 10.100.100.221/24 dev eth0
-ip addr add 10.100.100.222/24 dev eth0
-ip addr add 10.100.100.223/24 dev eth0
-ip addr add 10.100.100.224/24 dev eth0
+# Önce gönderici makinede birkaç IP alias ekle (--sources'a verilecekler):
+ip addr add 192.0.2.231/24 dev eth0
+ip addr add 192.0.2.232/24 dev eth0
+ip addr add 192.0.2.233/24 dev eth0
+ip addr add 192.0.2.234/24 dev eth0
 
-python3 loadtest/loadtest_high_volume.py            # 1M mesaj, varsayilan
-python3 loadtest/loadtest_high_volume.py myrun 50000 1   # ozel runid/hacim/tcp-conn
+SRC=192.0.2.231,192.0.2.232,192.0.2.233,192.0.2.234
+python3 loadtest/loadtest_high_volume.py --vip 192.0.2.50 --sources $SRC                # IP+protokol başına 100k
+python3 loadtest/loadtest_high_volume.py --vip 192.0.2.50 --sources $SRC myrun 50000 1  # özel runid/hacim/tcp-conn
 ```
 
 Bu ortamda ölçülen sonuç: ~210-230k eps gönderim, **%100 TCP + ~%99.7-99.9 UDP**

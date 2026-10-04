@@ -163,11 +163,11 @@ fi
 curl -s "http://127.0.0.1:${READYZ_PORT}/readyz/syslog" | head -c 300; echo
 echo
 echo "== Splunk tarafı (ELLE YAP) =="
-echo "Aşağıdaki snippet'i doldurup gösteriyorum -- bunu Splunk'ın"
-echo "\$SPLUNK_HOME/etc/system/local/inputs.conf ve outputs.conf dosyalarına"
-echo "ELLE ekle, sonra Splunk'ı restart et:"
-echo "-----------------------------------------------------------"
-render "$HERE/hf-nodes/splunk/inputs.conf.snippet" /tmp/inputs.conf.rendered
-cat /tmp/inputs.conf.rendered
-rm -f /tmp/inputs.conf.rendered
+echo "Aşağıdaki snippet'leri doldurup gösteriyorum -- Splunk'ın"
+echo "\$SPLUNK_HOME/etc/system/local/ altındaki ilgili dosyalara ELLE ekle,"
+echo "sonra Splunk'ı restart et:"
+for s in inputs.conf deploymentclient.conf; do
+    echo "----- ${s} -----"
+    render "$HERE/hf-nodes/splunk/${s}$([ "$s" = inputs.conf ] && echo .snippet)" /dev/stdout
+done
 echo "-----------------------------------------------------------"
