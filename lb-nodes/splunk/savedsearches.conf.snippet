@@ -1,0 +1,56 @@
+# SEARCH HEAD'de: $SPLUNK_HOME/etc/apps/<app>/local/savedsearches.conf
+# Sunucudan dogrudan Slack kapaliyken (SLACK_ENABLED=no) Slack mesajlarini
+# Splunk uretir. Gerekli: "Slack Notification Alert" app'i (Splunkbase 2878),
+# webhook URL'i app ayarlarinda tanimli. Splunk'in yerlesik "webhook" aksiyonu
+# kendi JSON bicimini gonderir, Slack bunu kabul etmez -- o yuzden Slack app'i.
+# Kanal bos ise app'in / webhook'un varsayilan kanali kullanilir.
+
+# 1) Her lb:event:hec olayini Slack'e ilet: anlik olaylar (VRRP gecisi, HF'nin
+#    havuza girip cikmasi, HEC'te HF dusmesi, disk uyarisi, "DUZELDI") ve
+#    saatlik rapor (type=report). Mesaj metni sunucuda hazirlaniyor.
+#    _indextime penceresi: geciken (gec indekslenen) olay kacmaz, iki kez de
+#    gelmez; 1 dk gecikmeli calisir.
+[LB - olaylari Slack'e ilet]
+search = index=<STATUS_INDEX> sourcetype=lb:event:hec _index_earliest=-2m@m _index_latest=-1m@m \
+| sort 0 _time \
+| table _time site lb type state severity message
+dispatch.earliest_time = -24h
+dispatch.latest_time = now
+cron_schedule = * * * * *
+enableSched = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+alert.track = 1
+alert.digest_mode = 0
+alert.severity = 3
+action.slack = 1
+action.slack.param.channel = <SPLUNK_SLACK_CHANNEL>
+action.slack.param.message = $result.message$
+
+# 2) LB'den durum verisi kesildi: her LB (MASTER ve BACKUP) dakikada bir
+#    lb:status:hec gonderir. 5 dakikadir gelmiyorsa LB kapali, ag/HEC sorunu ya
+#    da lb-status-check.timer durmus demektir -- LB bunu KENDISI bildiremez.
+#    Ayni LB icin saatte bir kez (suppress).
+[LB - durum verisi kesildi]
+search = | tstats latest(_time) as last where index=<STATUS_INDEX> sourcetype=lb:status:hec by host \
+| eval dakika = round((now() - last) / 60) \
+| where dakika >= 5 \
+| eval message = ":rotating_light: LB " . host . " " . dakika . " dakikadir durum gondermiyor (son: " . strftime(last, "%Y-%m-%d %H:%M") . "). LB kapali, ag/HEC sorunu ya da lb-status-check.timer durmus olabilir." \
+| table host dakika message
+dispatch.earliest_time = -24h
+dispatch.latest_time = now
+cron_schedule = */5 * * * *
+enableSched = 1
+counttype = number of events
+relation = greater than
+quantity = 0
+alert.track = 1
+alert.digest_mode = 0
+alert.severity = 4
+alert.suppress = 1
+alert.suppress.fields = host
+alert.suppress.period = 1h
+action.slack = 1
+action.slack.param.channel = <SPLUNK_SLACK_CHANNEL>
+action.slack.param.message = $result.message$

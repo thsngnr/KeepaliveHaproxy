@@ -155,7 +155,7 @@ install -d -m 0700 -o root -g root /etc/keepalived/keys
 if [ -n "$STATUS_INDEX" ] && [ -n "$STATUS_HEC_TOKEN" ]; then
     install -m 0600 -o root -g root /dev/null /etc/keepalived/keys/status-hec-token
     printf '%s\n' "$STATUS_HEC_TOKEN" > /etc/keepalived/keys/status-hec-token
-    echo "Splunk HEC: index=${STATUS_INDEX} (lb:status, lb:event:hec)"
+    echo "Splunk HEC: index=${STATUS_INDEX} (lb:status:hec, lb:event:hec)"
 else
     rm -f /etc/keepalived/keys/status-hec-token
     echo "Splunk HEC KAPALI (STATUS_INDEX veya token bos)"
@@ -229,9 +229,11 @@ systemctl is-active haproxy keepalived
 ipvsadm -L -n
 if [ -n "$STATUS_INDEX" ]; then
     echo
-    echo "== Splunk tarafi (ELLE YAP): ${STATUS_INDEX} index'i -- indexer'a VE HF'lere =="
-    echo "-----------------------------------------------------------"
-    render "$HERE/lb-nodes/splunk/indexes.conf.snippet" /dev/stdout
+    echo "== Splunk tarafi (ELLE YAP, bir kez) =="
+    for s in "indexes.conf:indexer'a VE HF'lere" "props.conf:search head'e" "savedsearches.conf:search head'e (Slack alert'leri)"; do
+        echo "----- ${s%%:*} -> ${s#*:} -----"
+        render "$HERE/lb-nodes/splunk/${s%%:*}.snippet" /dev/stdout
+    done
     echo "-----------------------------------------------------------"
 fi
 echo "Tamam. Diğer node'da da bu script'i çalıştırmayı unutma."

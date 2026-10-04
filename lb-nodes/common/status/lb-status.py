@@ -2,7 +2,7 @@
 """LB durum izleme: Splunk (HEC) ve opsiyonel Slack (anlik uyari + periyodik rapor).
 
 Splunk'a her zaman (STATUS_INDEX bos degilse ve token varsa):
-  sourcetype lb:status -> her check'te tam durum (JSON)
+  sourcetype lb:status:hec -> her check'te tam durum (JSON)
   sourcetype lb:event:hec  -> yeni / duzelen sorun (Splunk alert'leri buna kurulabilir)
 HEC hedefi once yerel HAProxy (127.0.0.1), olmazsa sirayla dogrudan HF'ler.
 Slack'e sadece SLACK_ENABLED=yes ise (varsayilan kapali).
@@ -370,12 +370,23 @@ def cmd_check():
     save_state(st["role"], cur)
 
     st["problems"] = sorted(cur)
-    events = [("lb:status", st)]
+    events = [("lb:status:hec", st)]
     for state, group in (("new", new), ("resolved", resolved)):
         for k, v in group.items():
             events.append(("lb:event:hec", {"site": SITE, "lb": HOST, "type": "problem", "state": state,
                                         "key": k, "severity": v["sev"], "message": v["text"]}))
     hec(events)
+
+
+def publish_report(cur, text):
+    """Rapor: Slack'e (SLACK_ENABLED ise) ve Splunk'a lb:event:hec type=report
+    olarak -- sunucudan Slack kapaliyken rapor Splunk alert'iyle Slack'e iletilir."""
+    slack(text)
+    hec([("lb:event:hec", {"site": SITE, "lb": HOST, "type": "report",
+                           "state": "ok" if not cur else "problems",
+                           "severity": "info" if not cur else max(
+                               (v["sev"] for v in cur.values()), key=["warn", "crit"].index),
+                           "problems": sorted(cur), "message": text})])
 
 
 def cmd_report():
@@ -389,7 +400,7 @@ def cmd_report():
     if not cur:
         disks = [h for h in hfs if h["disk_free_pct"] is not None]
         low = min(disks, key=lambda h: h["disk_free_pct"]) if disks else None
-        slack(":white_check_mark: {} {}/{} HF saglikli | syslog {} pkt/s | HEC {} istek/s | en dusuk disk: {} | {}".format(
+        publish_report(cur, ":white_check_mark: {} {}/{} HF saglikli | syslog {} pkt/s | HEC {} istek/s | en dusuk disk: {} | {}".format(
             PREFIX, len(hfs), len(hfs),
             human(sum(h["syslog_inpps"] or 0 for h in hfs)),
             human(sum(h["hec_rate"] or 0 for h in hfs)),
@@ -413,7 +424,7 @@ def cmd_report():
     table = "\n".join("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip() for r in rows)
     lb = st["lb_host"]
     probs = "\n".join("{} {}".format(icon(v["sev"]), v["text"]) for v in cur.values())
-    slack(":bar_chart: {} Durum raporu -- {} {} | {}\n{}\n```\n{}\n```\nLB: load {} | mem bos %{} | disk %{} dolu | haproxy {} | keepalived {}".format(
+    publish_report(cur, ":bar_chart: {} Durum raporu -- {} {} | {}\n{}\n```\n{}\n```\nLB: load {} | mem bos %{} | disk %{} dolu | haproxy {} | keepalived {}".format(
         PREFIX, HOST, st["role"], peer_txt, probs, table,
         lb.get("load1", "-"), lb.get("mem_avail_pct", "-"), lb.get("root_used_pct", "-"),
         "up" if st["services"]["haproxy"] else "DOWN", "up" if st["services"]["keepalived"] else "DOWN"))

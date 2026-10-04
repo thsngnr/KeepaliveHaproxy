@@ -1,0 +1,11 @@
+# SEARCH HEAD'de: $SPLUNK_HOME/etc/apps/<app>/local/props.conf
+# lb-status / notify.sh HEC ile JSON gonderir; alanlarin (severity, message,
+# hfs{}.disk_free_pct ...) aramada otomatik cikmasi icin KV_MODE = json.
+
+[lb:status:hec]
+KV_MODE = json
+# Cok HF'li kurulumlarda tek durum olayi buyuyebilir
+TRUNCATE = 200000
+
+[lb:event:hec]
+KV_MODE = json

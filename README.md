@@ -58,6 +58,8 @@ lb-nodes/
   lb1/keepalived/keepalived.conf   # lb1'e özel (priority, unicast_src_ip)
   lb2/keepalived/keepalived.conf   # lb2'ye özel
   splunk/indexes.conf.snippet      # lb_status index tanımı (indexer + HF'ler)
+  splunk/props.conf.snippet        # lb:*:hec JSON alanları (search head)
+  splunk/savedsearches.conf.snippet  # Slack alert'leri: olaylar + "LB veri göndermiyor"
 hf-nodes/                      # Her HF node'da BİREBİR aynı dosyalar
   rsyslog.d/49-hf-syslog-listener.conf
   sysctl.d/60-lvs-dr-realserver.conf
@@ -236,12 +238,17 @@ test script'inin threading deseninde.
     tek satır, sorun varsa tablo.
 
   Hedefler: **Splunk HEC** her zaman (`STATUS_INDEX`, varsayılan `lb_status`,
-  kısa retention): `sourcetype=lb:status` (her check'te tam durum JSON'u) ve
-  `sourcetype=lb:event:hec` (anlık olaylar; Splunk alert'leri buna kurulur).
-  Gönderim yerel HAProxy üzerinden, HAProxy çöktüyse doğrudan HF'lere. Index'in
-  indexer'da ve HF'lerde tanımlı olması gerekir (`install-lb-node.sh` sonunda
-  `indexes.conf` parçasını basar). **Slack** sadece `SLACK_ENABLED=yes` ise
-  (varsayılan kapalı). HF olaylarını ve raporu sadece VIP'i tutan LB gönderir
+  kısa retention): `sourcetype=lb:status:hec` (her check'te tam durum JSON'u) ve
+  `sourcetype=lb:event:hec` (anlık olaylar ve saatlik rapor, `type=report`).
+  Gönderim yerel HAProxy üzerinden, HAProxy çöktüyse doğrudan HF'lere.
+  Splunk tarafı (`install-lb-node.sh` sonunda basılır, `lb-nodes/splunk/`):
+  `indexes.conf` (indexer + HF'ler; HEC index'i HF'de doğrular),
+  `props.conf` (search head; `KV_MODE = json`) ve `savedsearches.conf`
+  (search head; "Slack Notification Alert" app'i ile): her `lb:event:hec`
+  olayını Slack'e (`SPLUNK_SLACK_CHANNEL`) iletir ve bir LB'den 5 dakikadır
+  `lb:status:hec` gelmiyorsa uyarır — LB tamamen ölürse kendisi bildiremez.
+  **Sunucudan doğrudan Slack** sadece `SLACK_ENABLED=yes` ise (varsayılan
+  kapalı; Slack'i Splunk alert'leri üretir). HF olaylarını ve raporu sadece VIP'i tutan LB gönderir
   (çift mesaj olmaz); her LB kendi servis/disk sorununu bildirir.
   `ALERT_SITE_NAME` aynı kanala/index'e yazan kurulumları ayırır; Slack için
   proxy `SLACK_PROXY`. HEC token'ı ve webhook URL'i sırdır: LB'de

@@ -44,6 +44,7 @@ load_vars() {
     STATUS_RETENTION_SECS=$((STATUS_RETENTION_DAYS * 86400))
     : "${STATUS_HEC_TOKEN:=${HEC_TOKEN:-}}"
     : "${SLACK_ENABLED:=no}"
+    : "${SPLUNK_SLACK_CHANNEL:=}"
     : "${ALERT_SITE_NAME:=}"
     : "${SLACK_WEBHOOK_URL:=}"
     : "${SLACK_PROXY:=}"
