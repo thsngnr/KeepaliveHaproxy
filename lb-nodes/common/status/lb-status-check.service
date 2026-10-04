@@ -1,0 +1,9 @@
+[Unit]
+Description=LB status check: immediate Slack alerts on new/resolved problems, state to Splunk HEC
+After=network-online.target haproxy.service keepalived.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/lb-status check
+TimeoutStartSec=50
+Nice=5

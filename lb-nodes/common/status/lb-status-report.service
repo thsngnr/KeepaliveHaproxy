@@ -1,0 +1,9 @@
+[Unit]
+Description=LB periodic status report to Slack (MASTER only)
+After=network-online.target haproxy.service keepalived.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/lb-status report
+TimeoutStartSec=60
+Nice=5

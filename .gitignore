@@ -4,3 +4,4 @@
 # kopyala/sembolik link yap.
 variables.env.local
 *.local.env
+__pycache__/

@@ -73,6 +73,32 @@ def _socket_listening(proto_flag):
         return False, str(exc)
 
 
+def _host_metrics():
+    # Informational only (never affects readiness): read by the LB status
+    # reporter (lb-status) for its Slack table and the Splunk status index.
+    metrics = {}
+    try:
+        metrics["load1"] = round(os.getloadavg()[0], 2)
+    except OSError:
+        pass
+    try:
+        mem = {}
+        with open("/proc/meminfo") as fh:
+            for line in fh:
+                key, val = line.split(":", 1)
+                mem[key] = int(val.split()[0])
+        metrics["mem_avail_pct"] = round(mem["MemAvailable"] * 100.0 / mem["MemTotal"], 1)
+    except (OSError, KeyError, ValueError):
+        pass
+    try:
+        usage = shutil.disk_usage(DATA_DIR)
+        metrics["data_dir_free_pct"] = round(usage.free * 100.0 / usage.total, 1)
+        metrics["data_dir_free_mb"] = int(usage.free / (1024 * 1024))
+    except OSError:
+        pass
+    return metrics
+
+
 def _disk_ok():
     try:
         probe = os.path.join(DATA_DIR, f".readyz-probe-{uuid.uuid4().hex}")
@@ -228,6 +254,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
+        body["host"] = _host_metrics()
         payload = json.dumps(body).encode()
         self.send_response(200 if ready else 503)
         self.send_header("Content-Type", "application/json")

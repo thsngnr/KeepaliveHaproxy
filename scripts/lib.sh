@@ -35,6 +35,15 @@ load_vars() {
     : "${SYSLOG_UDP_RMEM_BYTES:=33554432}"
     : "${READYZ_DISK_FREE_PCT_MIN:=10}"
     : "${READYZ_DISK_FREE_MB_MIN:=0}"
+    : "${STATUS_CHECK_INTERVAL_SEC:=60}"
+    : "${STATUS_REPORT_INTERVAL_MIN:=60}"
+    : "${STATUS_DISK_WARN_PCT:=20}"
+    : "${STATUS_INDEX=lb_status}"     # := degil: bilerek bos birakilabilir
+    : "${STATUS_RETENTION_DAYS:=7}"
+    # shellcheck disable=SC2034  # indexes.conf.snippet render eder
+    STATUS_RETENTION_SECS=$((STATUS_RETENTION_DAYS * 86400))
+    : "${STATUS_HEC_TOKEN:=${HEC_TOKEN:-}}"
+    : "${SLACK_ENABLED:=no}"
     : "${ALERT_SITE_NAME:=}"
     : "${SLACK_WEBHOOK_URL:=}"
     : "${SLACK_PROXY:=}"
@@ -70,6 +79,9 @@ validate_hf_nodes() {
         echo "HATA: HF_NODES bos (variables.env)" >&2; exit 1
     fi
     [ "$count" -ge 2 ] || echo "UYARI: HF_NODES'ta tek HF var -- yuk dengeleme/yedeklilik yok" >&2
+    # Tek satira indir: sablonlarda <HF_NODES> olarak da kullaniliyor
+    # shellcheck disable=SC2086
+    HF_NODES="$(echo $HF_NODES)"
     # shellcheck disable=SC2034  # install-lb-node.sh kullanir
     HF_COUNT="$count"
 }

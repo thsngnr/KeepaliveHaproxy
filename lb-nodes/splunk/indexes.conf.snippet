@@ -1,0 +1,17 @@
+# LB durum verisi (lb-status, sourcetype lb:status) icin ayri, kisa omurlu index.
+# Hacim kucuk: her LB dakikada ~1 olay (~1-3 KB) -> iki LB gunde ~5-10 MB.
+#
+# 1) INDEXER'da: $SPLUNK_HOME/etc/system/local/indexes.conf (veya bir app'in
+#    local/indexes.conf'u) icine ekle, Splunk'i restart et.
+# 2) HF'lerde de AYNI stanza'yi ekle: HEC, event'in index'ini HF'de dogrular;
+#    tanimli degilse "Incorrect index" hatasi verir. HF veriyi yerelde tutmaz,
+#    indexer'a iletir (index tanimi sadece dogrulama icin).
+# 3) HEC token'inda izinli index listesi (indexes = ...) varsa <STATUS_INDEX>'i ekle.
+
+[<STATUS_INDEX>]
+homePath   = $SPLUNK_DB/<STATUS_INDEX>/db
+coldPath   = $SPLUNK_DB/<STATUS_INDEX>/colddb
+thawedPath = $SPLUNK_DB/<STATUS_INDEX>/thaweddb
+# <STATUS_RETENTION_DAYS> gun sonra silinir (frozen; coldToFrozenDir yok)
+frozenTimePeriodInSecs = <STATUS_RETENTION_SECS>
+maxTotalDataSizeMB = 1024

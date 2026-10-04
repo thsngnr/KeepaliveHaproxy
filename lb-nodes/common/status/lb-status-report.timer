@@ -1,0 +1,11 @@
+[Unit]
+Description=LB status report every <STATUS_REPORT_INTERVAL_MIN> min
+
+[Timer]
+OnBootSec=5min
+OnActiveSec=2min
+OnUnitActiveSec=<STATUS_REPORT_INTERVAL_MIN>min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

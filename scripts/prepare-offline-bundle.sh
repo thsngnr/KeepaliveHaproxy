@@ -20,7 +20,7 @@ OUT="$(cd "$OUT" && pwd)"
 
 PACKAGES=(ipvsadm ipset build-essential libssl-dev libnl-3-dev
     libnl-genl-3-dev libnfnetlink-dev libipset-dev libsnmp-dev libmagic-dev
-    pkg-config libxtables-dev libip4tc-dev libip6tc-dev)
+    pkg-config libxtables-dev libip4tc-dev libip6tc-dev python3 curl)
 
 echo "== vbernat haproxy-3.4 PPA ekleniyor =="
 apt-get update -qq

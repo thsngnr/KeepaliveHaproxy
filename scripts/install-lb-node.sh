@@ -58,7 +58,7 @@ fi
 # keepalived'i kaynaktan derlemek için gerekenler.
 PACKAGES=(ipvsadm ipset build-essential libssl-dev libnl-3-dev
     libnl-genl-3-dev libnfnetlink-dev libipset-dev libsnmp-dev libmagic-dev
-    pkg-config libxtables-dev libip4tc-dev libip6tc-dev)
+    pkg-config libxtables-dev libip4tc-dev libip6tc-dev python3 curl)
 
 echo "== $ROLE: paketler =="
 if [ -n "$OFFLINE_DIR" ]; then
@@ -149,9 +149,32 @@ done
 chmod 700 "${KA_SCRIPTS[@]}"
 chown root:root "${KA_SCRIPTS[@]}"
 
-echo "== $ROLE: Slack bildirimi =="
-# Webhook URL bir sir: render edilen script'lere girmez, sadece root okuyabilir.
+echo "== $ROLE: durum izleme (lb-status) + Splunk HEC / Slack sirlari =="
+# Token ve webhook URL sir: render edilen script'lere girmez, sadece root okur.
 install -d -m 0700 -o root -g root /etc/keepalived/keys
+if [ -n "$STATUS_INDEX" ] && [ -n "$STATUS_HEC_TOKEN" ]; then
+    install -m 0600 -o root -g root /dev/null /etc/keepalived/keys/status-hec-token
+    printf '%s\n' "$STATUS_HEC_TOKEN" > /etc/keepalived/keys/status-hec-token
+    echo "Splunk HEC: index=${STATUS_INDEX} (lb:status, lb:event:hec)"
+else
+    rm -f /etc/keepalived/keys/status-hec-token
+    echo "Splunk HEC KAPALI (STATUS_INDEX veya token bos)"
+fi
+render "$HERE/lb-nodes/common/status/lb-status.py" /usr/local/sbin/lb-status
+chmod 0700 /usr/local/sbin/lb-status
+for u in lb-status-check.service lb-status-check.timer lb-status-report.service lb-status-report.timer; do
+    render "$HERE/lb-nodes/common/status/$u" "/etc/systemd/system/$u"
+done
+systemctl daemon-reload
+for t in check:STATUS_CHECK_INTERVAL_SEC report:STATUS_REPORT_INTERVAL_MIN; do
+    name="lb-status-${t%%:*}.timer"; var="${t#*:}"
+    if [ "${!var}" -gt 0 ] 2>/dev/null; then
+        systemctl enable --now "$name"
+    else
+        systemctl disable --now "$name" 2>/dev/null || true
+        echo "${var}=${!var}: ${name} KAPALI"
+    fi
+done
 if [ -n "$SLACK_WEBHOOK_URL" ]; then
     install -m 0600 -o root -g root /dev/null /etc/keepalived/keys/slack-webhook
     printf '%s\n' "$SLACK_WEBHOOK_URL" > /etc/keepalived/keys/slack-webhook
@@ -162,11 +185,15 @@ if [ -n "$SLACK_PROXY" ]; then
 else
     rm -f /etc/keepalived/keys/slack-proxy
 fi
-if [ -s /etc/keepalived/keys/slack-webhook ]; then
-    echo "Slack ACIK. Test: /etc/keepalived/notify.sh INSTANCE test MASTER 0"
+if [ "$SLACK_ENABLED" = "yes" ] && [ -s /etc/keepalived/keys/slack-webhook ]; then
+    echo "Slack ACIK."
+elif [ "$SLACK_ENABLED" = "yes" ]; then
+    echo "UYARI: SLACK_ENABLED=yes ama webhook yok (/etc/keepalived/keys/slack-webhook) -- Slack'e gitmez" >&2
 else
-    echo "Slack KAPALI (webhook yok) -- bildirimler sadece syslog'a (keepalived-notify)"
+    echo "Slack KAPALI (SLACK_ENABLED=${SLACK_ENABLED}) -- olaylar syslog + Splunk'a"
 fi
+echo "Kuru deneme (gondermez, ekrana basar): lb-status check --dry-run ; lb-status report --dry-run"
+echo "Test olayi: /etc/keepalived/notify.sh INSTANCE test MASTER 0"
 
 echo "== $ROLE: keepalived.conf =="
 if [ ! -f /etc/keepalived/keys/vrrp200 ]; then
@@ -200,4 +227,11 @@ systemctl restart keepalived
 echo "== $ROLE: durum =="
 systemctl is-active haproxy keepalived
 ipvsadm -L -n
+if [ -n "$STATUS_INDEX" ]; then
+    echo
+    echo "== Splunk tarafi (ELLE YAP): ${STATUS_INDEX} index'i -- indexer'a VE HF'lere =="
+    echo "-----------------------------------------------------------"
+    render "$HERE/lb-nodes/splunk/indexes.conf.snippet" /dev/stdout
+    echo "-----------------------------------------------------------"
+fi
 echo "Tamam. Diğer node'da da bu script'i çalıştırmayı unutma."

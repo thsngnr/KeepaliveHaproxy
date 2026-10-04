@@ -1,0 +1,13 @@
+[Unit]
+Description=LB status check every <STATUS_CHECK_INTERVAL_SEC>s
+
+[Timer]
+OnBootSec=60s
+# Kurulumda (makine coktan acikken) da baslasin: OnUnitActiveSec ancak servis
+# bir kez calistiktan sonra sayar.
+OnActiveSec=30s
+OnUnitActiveSec=<STATUS_CHECK_INTERVAL_SEC>s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

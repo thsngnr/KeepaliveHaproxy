@@ -53,9 +53,11 @@ lb-nodes/
     haproxy/haproxy.cfg
     keepalived/check_haproxy.sh
     keepalived/check_hf_ready.sh
-    keepalived/notify.sh          # VRRP/HF durum bildirimi (syslog + Slack)
+    keepalived/notify.sh          # VRRP/HF anlık olay bildirimi (syslog + HEC + ops. Slack)
+    status/lb-status.py           # periyodik durum kontrolü/raporu (+ systemd timer'ları)
   lb1/keepalived/keepalived.conf   # lb1'e özel (priority, unicast_src_ip)
   lb2/keepalived/keepalived.conf   # lb2'ye özel
+  splunk/indexes.conf.snippet      # lb_status index tanımı (indexer + HF'ler)
 hf-nodes/                      # Her HF node'da BİREBİR aynı dosyalar
   rsyslog.d/49-hf-syslog-listener.conf
   sysctl.d/60-lvs-dr-realserver.conf
@@ -222,16 +224,30 @@ test script'inin threading deseninde.
   `check_hf_ready.sh <ip> tcp|udp` → `/readyz/syslog` (rsyslog, listener'lar,
   disk) ile kontrol edilir, havuz başına ayrı rise sayacı tutulur; TCP ayrıca
   `TCP_CHECK`'i korur. Diski dolan bir HF iki havuzdan birden çıkar.
-- **Durum bildirimleri (Slack).** keepalived `notify.sh`'ı çağırır: VRRP
-  geçişleri (MASTER/BACKUP/FAULT), bir HF'nin syslog TCP/UDP havuzuna girip
-  çıkması ve havuzda **hiç HF kalmaması** (KRİTİK). Her olay syslog'a
-  (`keepalived-notify` tag'i) yazılır; `/etc/keepalived/keys/slack-webhook`
-  varsa Slack'e de gider (5 sn zaman aşımı, arka planda — keepalived'i
-  bekletmez). HF olaylarını sadece VIP'i tutan LB gönderir (çift mesaj olmaz).
-  `ALERT_SITE_NAME` birden fazla kurulum aynı kanala yazıyorsa mesajda siteyi
-  gösterir; LB'ler internete çıkamıyorsa `SLACK_PROXY`. Webhook URL'i bir
-  sırdır: `variables.env`'i doldurulmuş haliyle commit etme ya da dosyayı LB'de
-  elle oluştur.
+- **Durum izleme ve bildirim (Splunk + opsiyonel Slack).** İki kaynak:
+  - *keepalived `notify.sh`* (anlık): VRRP geçişleri (MASTER/BACKUP/FAULT), bir
+    HF'nin syslog TCP/UDP havuzuna girip çıkması, havuzda **hiç HF kalmaması**.
+  - *`lb-status`* (systemd timer): `check` her `STATUS_CHECK_INTERVAL_SEC`
+    (60 sn) durumu toplar — HAProxy stats (HEC), IPVS (`ipvsadm --rate`), her
+    HF'nin readyz'i (disk, yük, bellek), yedek LB erişimi — ve **yeni çıkan /
+    düzelen** sorunu hemen bildirir (HEC'te HF düşmesi, HEC'te hiç HF kalmaması,
+    readyz'e ulaşılamaması, HF diski `STATUS_DISK_WARN_PCT` altında, LB servis/
+    disk). `report` her `STATUS_REPORT_INTERVAL_MIN` (60 dk): her şey normalse
+    tek satır, sorun varsa tablo.
+
+  Hedefler: **Splunk HEC** her zaman (`STATUS_INDEX`, varsayılan `lb_status`,
+  kısa retention): `sourcetype=lb:status` (her check'te tam durum JSON'u) ve
+  `sourcetype=lb:event:hec` (anlık olaylar; Splunk alert'leri buna kurulur).
+  Gönderim yerel HAProxy üzerinden, HAProxy çöktüyse doğrudan HF'lere. Index'in
+  indexer'da ve HF'lerde tanımlı olması gerekir (`install-lb-node.sh` sonunda
+  `indexes.conf` parçasını basar). **Slack** sadece `SLACK_ENABLED=yes` ise
+  (varsayılan kapalı). HF olaylarını ve raporu sadece VIP'i tutan LB gönderir
+  (çift mesaj olmaz); her LB kendi servis/disk sorununu bildirir.
+  `ALERT_SITE_NAME` aynı kanala/index'e yazan kurulumları ayırır; Slack için
+  proxy `SLACK_PROXY`. HEC token'ı ve webhook URL'i sırdır: LB'de
+  `/etc/keepalived/keys/` altında 0600 tutulur; `variables.env`'i doldurulmuş
+  haliyle commit etme. Deneme: `lb-status check --dry-run`,
+  `lb-status report --dry-run` (göndermez, ekrana basar).
 - **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — tüm HF'lerin syslog
   tarafı düşse bile VIP/VRRP failover tetiklenmez (bu bir alerting durumu,
   failover sebebi değil). Sadece HAProxy/8088 sağlığı VRRP'yi etkiler.
