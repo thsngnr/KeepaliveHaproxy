@@ -78,7 +78,8 @@ scripts/
 loadtest/
   loadtest.py                  # Çoklu source-IP TCP+UDP eşzamanlı yük testi
   loadtest_high_volume.py      # Yüksek hacimli (1M+, >200k eps) sürüm
-variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığı dosya
+variables.env                  # ŞABLON: tüm değişkenler + örnek değerler (gerçek değer yazma)
+variables.env.local            # gerçek değerler (sen oluşturursun, .gitignore'da)
 ```
 
 ## Önkoşullar (2 LB + N HF)
@@ -119,7 +120,7 @@ alır.
 
 ```mermaid
 flowchart LR
-    A["1 · variables.env<br/>doldur"] --> B["2 · HER HF'de<br/>install-hf-node.sh"]
+    A["1 · variables.env.local<br/>doldur"] --> B["2 · HER HF'de<br/>install-hf-node.sh"]
     B --> C["3a · bir LB'de<br/>gen-vrrp-key.sh"]
     C --> D["3b · key'i diğer LB'ye<br/>kopyala"]
     D --> E["3c · HER LB'de<br/>install-lb-node.sh"]
@@ -130,7 +131,8 @@ flowchart LR
     class A,B,C,D,E,F,G step
 ```
 
-1. `variables.env` dosyasını doldur (VIP, lb1/lb2 IP'leri, `HF_NODES` (ad:ip listesi),
+1. Gerçek değerleri `variables.env.local`'a yaz (`variables.env` şablondur,
+   repoda kalır; `.local` onun üstüne yüklenir ve `.gitignore`'dadır) (VIP, lb1/lb2 IP'leri, `HF_NODES` (ad:ip listesi),
    indexer IP'si, HEC token, router_id'ler).
 2. **Önce HF'ler**: her hf node'da `scripts/install-hf-node.sh` çalıştır.
    - VIP'i `lo:vip200`'e ekler (ARP suppression sysctl'leriyle birlikte)
@@ -260,8 +262,8 @@ test script'inin threading deseninde.
   (çift mesaj olmaz); her LB kendi servis/disk sorununu bildirir.
   `ALERT_SITE_NAME` aynı kanala/index'e yazan kurulumları ayırır; Slack için
   proxy `SLACK_PROXY`. HEC token'ı ve webhook URL'i sırdır: LB'de
-  `/etc/keepalived/keys/` altında 0600 tutulur; `variables.env`'i doldurulmuş
-  haliyle commit etme. Deneme: `lb-status check --dry-run`,
+  `/etc/keepalived/keys/` altında 0600 tutulur; gerçek değerler
+  `variables.env.local`'a yazılır (commit'e giremez). Deneme: `lb-status check --dry-run`,
   `lb-status report --dry-run` (göndermez, ekrana basar).
 - **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — tüm HF'lerin syslog
   tarafı düşse bile VIP/VRRP failover tetiklenmez (bu bir alerting durumu,

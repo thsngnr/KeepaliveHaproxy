@@ -1,7 +1,6 @@
-# Gerçek IP/token değerleriyle doldurulmuş variables.env asla commit edilmesin.
-# Doldurulmuş kopyanı variables.env.local gibi farklı bir isimle tut (bu da
-# ignore'lu) ve install script'lerini çalıştırmadan önce variables.env'e
-# kopyala/sembolik link yap.
+# Gerçek IP/token/webhook değerleri variables.env.local'da tutulur (install
+# script'leri variables.env'in üstüne yükler); asla commit edilmesin.
+# variables.env repodaki şablondur, gerçek değer içermemeli.
 variables.env.local
 *.local.env
 __pycache__/

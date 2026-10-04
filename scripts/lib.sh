@@ -14,8 +14,20 @@
 # variables.env'i yukler, varsayilanlari atar, HF_NODES'u dogrular.
 load_vars() {
     local root="$1"
+    # variables.env: repodaki sablon (ornek degerler + aciklamalar).
+    # variables.env.local: gercek degerler (IP, token, webhook); .gitignore'da,
+    # commit'e giremez. Varsa sablonun USTUNE yuklenir -- sadece degisen
+    # satirlari yazmak yeterli.
     # shellcheck source=/dev/null
     source "$root/variables.env"
+    if [ -f "$root/variables.env.local" ]; then
+        # shellcheck source=/dev/null
+        source "$root/variables.env.local"
+        echo "Degiskenler: variables.env + variables.env.local" >&2
+    else
+        echo "UYARI: variables.env.local yok -- sadece variables.env kullaniliyor." >&2
+        echo "       Gercek degerleri variables.env.local'a yaz (commit'e giremez)." >&2
+    fi
 
     # Opsiyonel degiskenlerin varsayilanlari (variables.env'de yoksa).
     : "${VIP_PREFIX:=32}"
