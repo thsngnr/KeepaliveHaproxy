@@ -63,6 +63,8 @@ render() {
         -e "s/<SYSLOG_QUEUE_WORKERS>/${SYSLOG_QUEUE_WORKERS:-2}/g" \
         -e "s/<SYSLOG_QUEUE_BATCH>/${SYSLOG_QUEUE_BATCH:-1024}/g" \
         -e "s/<SYSLOG_QUEUE_MAX_DISK>/${SYSLOG_QUEUE_MAX_DISK:-2g}/g" \
+        -e "s/<READYZ_DISK_FREE_PCT_MIN>/${READYZ_DISK_FREE_PCT_MIN:-10}/g" \
+        -e "s/<READYZ_DISK_FREE_MB_MIN>/${READYZ_DISK_FREE_MB_MIN:-0}/g" \
         "$1" > "$2"
 }
 

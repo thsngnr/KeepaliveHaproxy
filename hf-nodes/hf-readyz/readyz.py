@@ -27,6 +27,10 @@ BIND_ADDR = os.environ.get("READYZ_BIND", "0.0.0.0")
 BIND_PORT = int(os.environ.get("READYZ_PORT", "9099"))
 DATA_DIR = os.environ.get("READYZ_DATA_DIR", "/data/log/splunk/syslog")
 DISK_FREE_PCT_MIN = float(os.environ.get("READYZ_DISK_FREE_PCT_MIN", "10"))
+# Absolute floor alongside the percentage. DATA_DIR usually shares a disk with
+# Splunk, which pauses work below server.conf [diskUsage] minFreeSpace (default
+# 5000 MB); keep this a bit above it so the HF leaves the pool first. 0 = off.
+DISK_FREE_MB_MIN = float(os.environ.get("READYZ_DISK_FREE_MB_MIN", "0"))
 SPLUNKD_PORT = int(os.environ.get("READYZ_SPLUNKD_PORT", "8089"))
 HEC_PORT = int(os.environ.get("READYZ_HEC_PORT", "8088"))
 HEC_SCHEME = "https" if os.environ.get("READYZ_HEC_SSL", "0") == "1" else "http"
@@ -77,7 +81,9 @@ def _disk_ok():
         os.remove(probe)
         usage = shutil.disk_usage(DATA_DIR)
         free_pct = (usage.free / usage.total) * 100
-        return free_pct >= DISK_FREE_PCT_MIN, f"{free_pct:.1f}% free"
+        free_mb = usage.free / (1024 * 1024)
+        ok = free_pct >= DISK_FREE_PCT_MIN and free_mb >= DISK_FREE_MB_MIN
+        return ok, f"{free_pct:.1f}% free, {free_mb:.0f} MB free"
     except Exception as exc:
         return False, str(exc)
 
