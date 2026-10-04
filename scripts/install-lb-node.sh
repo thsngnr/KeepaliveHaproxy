@@ -69,6 +69,9 @@ render() {
         -e "s/<SYSLOG_PORT>/${SYSLOG_PORT}/g" \
         -e "s/<HEC_PORT>/${HEC_PORT}/g" \
         -e "s/<READYZ_PORT>/${READYZ_PORT}/g" \
+        -e "s/<DS_IP>/${DS_IP:-}/g" \
+        -e "s/<DS_PORT>/${DS_PORT:-8089}/g" \
+        -e "s/<DS_LISTEN_PORT>/${DS_LISTEN_PORT:-8089}/g" \
         "$1" > "$2"
 }
 
@@ -141,6 +144,15 @@ keepalived --version | head -1
 
 echo "== $ROLE: haproxy.cfg =="
 render "$HERE/lb-nodes/common/haproxy/haproxy.cfg" /etc/haproxy/haproxy.cfg
+# Opsiyonel Deployment Server yonlendirmesi: DS_IP doluysa #DS# satirlari aktif,
+# bos ise silinir.
+if [ -n "${DS_IP:-}" ]; then
+    sed -i 's/^#DS# \?//' /etc/haproxy/haproxy.cfg
+    echo "Deployment Server yonlendirme ACIK: ${VIP_IP}:${DS_LISTEN_PORT:-8089} -> ${DS_IP}:${DS_PORT:-8089}"
+else
+    sed -i '/^#DS#/d' /etc/haproxy/haproxy.cfg
+    echo "Deployment Server yonlendirme KAPALI (DS_IP bos)"
+fi
 
 echo "== $ROLE: check_haproxy.sh / check_hf_ready.sh =="
 render "$HERE/lb-nodes/common/keepalived/check_haproxy.sh" /etc/keepalived/check_haproxy.sh

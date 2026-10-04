@@ -203,3 +203,11 @@ test script'inin threading deseninde.
   görünür ama karşı taraf alamaz). Bu durumda `USE_VMAC=no` bırak. Altyapı
   sanal MAC'e izin veriyorsa (Proxmox, ESXi'de Accept) `yes` yapılabilir.
   `install-lb-node.sh` değeri uygular ve eski `vrrp200` arayüzünü temizler.
+
+- **Deployment Server yönlendirme (opsiyonel, `DS_IP`).** `variables.env`'de
+  `DS_IP` doldurulursa HAProxy `<VIP>:DS_LISTEN_PORT` (varsayılan 8089)
+  bağlantılarını `DS_IP:DS_PORT`'a (`mode tcp`, TLS geçirilir) iletir; böylece
+  UF/HF'lerin `deploymentclient.conf` `targetUri`'si VIP olabilir. `DS_IP` boş
+  bırakılırsa (varsayılan) haproxy.cfg'ye hiçbir şey eklenmez. DS istemcileri LB
+  IP'si olarak görür (proxy); kimlik GUID/hostname ile tutulur. Tek hedef
+  olduğundan HA sağlamaz, sadece sabit giriş adresi verir.
