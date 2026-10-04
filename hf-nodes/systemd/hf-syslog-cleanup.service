@@ -1,0 +1,17 @@
+# <DATA_DIR> altindaki eski syslog dosyalarini siler (hf-syslog-cleanup.timer
+# tetikler). Dosyalar rsyslog servis kullanicisina ait, bu yuzden ayni
+# kullaniciyla calisir; root'a gerek yok.
+[Unit]
+Description=Splunk HF syslog retention cleanup (<DATA_DIR>, <SYSLOG_RETENTION_HOURS> saat)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hf-syslog-cleanup.sh
+User=<SVC_USER>
+Group=<SVC_GROUP>
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=<DATA_DIR>
+PrivateTmp=true

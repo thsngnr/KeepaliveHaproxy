@@ -3,10 +3,16 @@
 # en yüksek önceliğe sahip ve global [http] ayarını kesin olarak belirler).
 # Splunk'ı restart et: $SPLUNK_HOME/bin/splunk restart
 
+# host_segment: dosya yolu <DATA_DIR>/<kaynak-ip>/<dosya>.log; <kaynak-ip>
+# yolun <HOST_SEGMENT>. parcasi oldugu icin host alani HF'nin adi yerine
+# gercek syslog kaynak IP'si olur (install-hf-node.sh DATA_DIR'dan hesaplar).
+# whitelist: readyz'nin <DATA_DIR> altina yazdigi gecici probe dosyalarini disarida tutar.
 [monitor://<DATA_DIR>]
 disabled = false
 sourcetype = syslog
-index = main
+index = <SYSLOG_INDEX>
+host_segment = <HOST_SEGMENT>
+whitelist = \.log$
 
 [http]
 disabled = 0

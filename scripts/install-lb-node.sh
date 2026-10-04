@@ -72,6 +72,7 @@ render() {
         -e "s/<DS_IP>/${DS_IP:-}/g" \
         -e "s/<DS_PORT>/${DS_PORT:-8089}/g" \
         -e "s/<DS_LISTEN_PORT>/${DS_LISTEN_PORT:-8089}/g" \
+        -e "s/<HEC_TLS_BALANCE>/${HEC_TLS_BALANCE:-source}/g" \
         "$1" > "$2"
 }
 
@@ -152,6 +153,15 @@ if [ -n "${DS_IP:-}" ]; then
 else
     sed -i '/^#DS#/d' /etc/haproxy/haproxy.cfg
     echo "Deployment Server yonlendirme KAPALI (DS_IP bos)"
+fi
+# HEC modu: HEC_SSL=1 ise TLS passthrough (mode tcp), degilse mode http +
+# channel bazli yapiskanlik (useACK icin).
+if [ "${HEC_SSL:-0}" = "1" ]; then
+    sed -i -e 's/^#HECTLS# //' -e '/^#HECHTTP#/d' /etc/haproxy/haproxy.cfg
+    echo "HEC: TLS passthrough (mode tcp), balance ${HEC_TLS_BALANCE:-source}"
+else
+    sed -i -e 's/^#HECHTTP# //' -e '/^#HECTLS#/d' /etc/haproxy/haproxy.cfg
+    echo "HEC: mode http, X-Splunk-Request-Channel bazli yapiskanlik"
 fi
 
 echo "== $ROLE: check_haproxy.sh / check_hf_ready.sh =="

@@ -1,0 +1,13 @@
+[Unit]
+Description=Quarter-hourly Splunk HF syslog retention cleanup
+
+[Timer]
+# Her ceyregin 2. dakikasi (xx:02, :17, :32, :47): rsyslog bir onceki ceyregin
+# dosyasini birakmis olur. Dosyalar en fazla retention + ~15 dk yasar.
+OnCalendar=*:02/15
+AccuracySec=30s
+# Makine kapaliyken kacirilan calismayi acilista telafi et
+Persistent=true
+
+[Install]
+WantedBy=timers.target

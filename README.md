@@ -60,6 +60,8 @@ hf-nodes/                      # Her 3 HF node'da BİREBİR aynı dosyalar
   sysctl.d/60-lvs-dr-realserver.conf
   systemd/lvs-realserver-vip.service
   systemd/hf-readyz.service
+  systemd/hf-syslog-cleanup.{service,timer}  # ceyreklik retention temizligi
+  cleanup/hf-syslog-cleanup.sh
   hf-readyz/readyz.py
   splunk/inputs.conf.snippet
 scripts/
@@ -124,6 +126,7 @@ flowchart LR
    - VIP'i `lo:vip200`'e ekler (ARP suppression sysctl'leriyle birlikte)
    - rsyslog dinleyici config'ini kurar
    - `hf-readyz` (port 9099) health servisini kurar
+   - `hf-syslog-cleanup.timer`'ı kurar (`SYSLOG_RETENTION_HOURS`, varsayılan 5 saat)
    - Splunk `inputs.conf`'una HEC + monitor stanza'larını ekler (elle onay ister)
 3. **Sonra LB'ler**: her lb node'da `scripts/gen-vrrp-key.sh` ile VRRP auth
    key'i üret (iki node'da da **aynı key dosyası** olmalı — birini üretip
@@ -177,6 +180,35 @@ test script'inin threading deseninde.
   geri gelse bile VIP'i otomatik geri almaz (kasıtlı — flapping'i önler).
   Elle geri almak için `systemctl restart keepalived` (düşük öncelikli
   node'u) yeterli.
+- **Splunk'ta `host` = syslog kaynak IP'si.** Monitor stanza'sı
+  `host_segment` kullanır: `<DATA_DIR>/<kaynak-ip>/...` yolundaki IP parçası
+  `host` alanına yazılır (`install-hf-node.sh` sırayı `DATA_DIR`'dan hesaplar,
+  `/data/log/splunk/syslog` için 5). Bu olmadan `host` HF'nin adı olur ve
+  kaynak IP sadece `source` yolunda kalır.
+- **Syslog retention.** rsyslog her kaynak IP için çeyrek saatlik dosya açar
+  (`<host>-YYYY-MM-DD-HH-QQ.log`, `QQ` = `00`..`03` → :00/:15/:30/:45 çeyreği);
+  temizlenmezse disk dolar, `readyz` `disk_ok` düşer ve HF havuzdan çıkar.
+  `hf-syslog-cleanup.timer` her çeyreğin 2. dakikasında çalışır, son yazımı
+  `SYSLOG_RETENTION_HOURS` (varsayılan 5) saatten eski `*.log` dosyalarını ve
+  uzun süredir boş kaynak-IP klasörlerini siler — her kaynak için son ~5 saatin
+  (~20 çeyrek dosyası) kalır. **Dikkat:** Splunk bu süre içinde dosyayı
+  okuyamazsa (ör. indexer 5 saatten uzun erişilemez ve HF'nin output kuyruğu
+  dolarsa) okunmamış dosyalar silinir. 5 saat varsayılandır; farklı bir süre
+  isteyen `variables.env`'de `SYSLOG_RETENTION_HOURS`'u değiştirip
+  `install-hf-node.sh`'ı yeniden çalıştırır. Temizliği zaten kendi
+  cron/logrotate'i yapan HF'lerde `SYSLOG_RETENTION_HOURS=0` ile timer kapatılır.
+- **HEC ve indexer acknowledgment (`useACK`).** Ack sorgusu, o channel'ın
+  event'lerini alan HF'ye gitmek zorunda; düz roundrobin bunu bozar.
+  `HEC_SSL=0` iken HAProxy `mode http` çalışır: her istek ayrı dengelenir
+  (keep-alive istemciler tek HF'ye yapışmaz) ve `X-Splunk-Request-Channel`
+  (veya `?channel=`) üzerinden consistent hash ile aynı HF'ye gider; channel'sız
+  istekler roundrobin. `HEC_SSL=1` iken TLS passthrough olduğundan header
+  görülemez, `HEC_TLS_BALANCE` (varsayılan `source`, istemci IP'sine göre)
+  kullanılır; useACK yoksa `roundrobin` yapılabilir.
+- **Syslog TCP ve UDP havuzları aynı sağlık sinyalini kullanır.** İkisi de
+  `check_hf_ready.sh <ip> tcp|udp` → `/readyz/syslog` (rsyslog, listener'lar,
+  disk) ile kontrol edilir, havuz başına ayrı rise sayacı tutulur; TCP ayrıca
+  `TCP_CHECK`'i korur. Diski dolan bir HF iki havuzdan birden çıkar.
 - **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — 3 HF'nin de syslog
   tarafı düşse bile VIP/VRRP failover tetiklenmez (bu bir alerting durumu,
   failover sebebi değil). Sadece HAProxy/8088 sağlığı VRRP'yi etkiler.

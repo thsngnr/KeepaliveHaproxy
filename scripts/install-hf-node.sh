@@ -26,6 +26,14 @@ else
 fi
 echo "Servis kullanicisi: ${SVC_USER}:${SVC_GROUP}"
 
+# Splunk host_segment: <DATA_DIR>/<kaynak-ip>/... yolunda <kaynak-ip>'nin sirasi
+# (/data/log/splunk/syslog -> 4 parca -> kaynak-ip 5. parca).
+HOST_SEGMENT="$(awk -F/ '{n=0; for (i=1; i<=NF; i++) if ($i != "") n++; print n+1}' <<<"$DATA_DIR")"
+SYSLOG_RETENTION_HOURS="${SYSLOG_RETENTION_HOURS:-5}"
+case "$SYSLOG_RETENTION_HOURS" in
+    ''|*[!0-9]*) echo "HATA: SYSLOG_RETENTION_HOURS sayi olmali ('${SYSLOG_RETENTION_HOURS}')" >&2; exit 1 ;;
+esac
+
 render() {
     sed \
         -e "s/<VIP_IP>/${VIP_IP}/g" \
@@ -44,6 +52,9 @@ render() {
         -e "s/<HEC_SSL>/${HEC_SSL:-0}/g" \
         -e "s/<SVC_USER>/${SVC_USER}/g" \
         -e "s/<SVC_GROUP>/${SVC_GROUP}/g" \
+        -e "s/<HOST_SEGMENT>/${HOST_SEGMENT}/g" \
+        -e "s/<SYSLOG_INDEX>/${SYSLOG_INDEX:-main}/g" \
+        -e "s/<SYSLOG_RETENTION_HOURS>/${SYSLOG_RETENTION_HOURS}/g" \
         "$1" > "$2"
 }
 
@@ -82,14 +93,30 @@ install -d -m 0755 /opt/hf-readyz
 render "$HERE/hf-nodes/hf-readyz/readyz.py" /opt/hf-readyz/readyz.py
 render "$HERE/hf-nodes/systemd/hf-readyz.service" /etc/systemd/system/hf-readyz.service
 
+echo "== syslog retention temizligi (${SYSLOG_RETENTION_HOURS} saat) =="
+render "$HERE/hf-nodes/cleanup/hf-syslog-cleanup.sh" /usr/local/sbin/hf-syslog-cleanup.sh
+chmod 0755 /usr/local/sbin/hf-syslog-cleanup.sh
+render "$HERE/hf-nodes/systemd/hf-syslog-cleanup.service" /etc/systemd/system/hf-syslog-cleanup.service
+cp "$HERE/hf-nodes/systemd/hf-syslog-cleanup.timer" /etc/systemd/system/hf-syslog-cleanup.timer
+
 echo "== servisler =="
 systemctl daemon-reload
 systemctl enable --now lvs-realserver-vip.service
 systemctl enable --now hf-readyz.service
+if [ "$SYSLOG_RETENTION_HOURS" -gt 0 ]; then
+    systemctl enable --now hf-syslog-cleanup.timer
+else
+    # 0 = bu HF'nin temizligini baska bir mekanizma (cron/logrotate) yapiyor
+    systemctl disable --now hf-syslog-cleanup.timer 2>/dev/null || true
+    echo "SYSLOG_RETENTION_HOURS=0: hf-syslog-cleanup.timer KAPALI"
+fi
 systemctl restart rsyslog
 
 echo "== durum =="
 systemctl is-active lvs-realserver-vip.service hf-readyz.service rsyslog
+if [ "$SYSLOG_RETENTION_HOURS" -gt 0 ]; then
+    systemctl list-timers hf-syslog-cleanup.timer --no-pager || true
+fi
 ip addr show lo | grep "${VIP_IP}" || echo "UYARI: VIP lo'ya eklenmedi, kontrol et"
 curl -s "http://127.0.0.1:${READYZ_PORT}/readyz/syslog" | head -c 300; echo
 echo
