@@ -33,6 +33,10 @@ SYSLOG_RETENTION_HOURS="${SYSLOG_RETENTION_HOURS:-5}"
 case "$SYSLOG_RETENTION_HOURS" in
     ''|*[!0-9]*) echo "HATA: SYSLOG_RETENTION_HOURS sayi olmali ('${SYSLOG_RETENTION_HOURS}')" >&2; exit 1 ;;
 esac
+SYSLOG_UDP_RMEM_BYTES="${SYSLOG_UDP_RMEM_BYTES:-33554432}"
+case "$SYSLOG_UDP_RMEM_BYTES" in
+    ''|*[!0-9]*) echo "HATA: SYSLOG_UDP_RMEM_BYTES sayi olmali ('${SYSLOG_UDP_RMEM_BYTES}')" >&2; exit 1 ;;
+esac
 
 render() {
     sed \
@@ -55,6 +59,10 @@ render() {
         -e "s/<HOST_SEGMENT>/${HOST_SEGMENT}/g" \
         -e "s/<SYSLOG_INDEX>/${SYSLOG_INDEX:-main}/g" \
         -e "s/<SYSLOG_RETENTION_HOURS>/${SYSLOG_RETENTION_HOURS}/g" \
+        -e "s/<SYSLOG_QUEUE_SIZE>/${SYSLOG_QUEUE_SIZE:-100000}/g" \
+        -e "s/<SYSLOG_QUEUE_WORKERS>/${SYSLOG_QUEUE_WORKERS:-2}/g" \
+        -e "s/<SYSLOG_QUEUE_BATCH>/${SYSLOG_QUEUE_BATCH:-1024}/g" \
+        -e "s/<SYSLOG_QUEUE_MAX_DISK>/${SYSLOG_QUEUE_MAX_DISK:-2g}/g" \
         "$1" > "$2"
 }
 
@@ -68,12 +76,39 @@ echo "== VIP loopback alias (DR) + ARP suppression =="
 render "$HERE/hf-nodes/sysctl.d/60-lvs-dr-realserver.conf" /tmp/60-lvs-dr-realserver.conf
 sed -i "s/eth0/${PRIMARY_IF}/g" /tmp/60-lvs-dr-realserver.conf
 mv -f /tmp/60-lvs-dr-realserver.conf /etc/sysctl.d/60-lvs-dr-realserver.conf
+
+echo "== UDP alma buffer'i (rmem) =="
+# rsyslog imudp buffer boyutu belirtmez, soket net.core.rmem_default ile acilir.
+# Buffer soket acilirken belirlenir: asagidaki "systemctl restart rsyslog"
+# sonrasi gecerli olur. rmem_max sadece buyutulur, mevcut daha buyukse korunur.
+RMEM_SYSCTL=/etc/sysctl.d/62-hf-udp-rmem.conf
+if [ "$SYSLOG_UDP_RMEM_BYTES" -gt 0 ]; then
+    rmem_max="$(sysctl -n net.core.rmem_max)"
+    [ "$rmem_max" -lt "$SYSLOG_UDP_RMEM_BYTES" ] && rmem_max="$SYSLOG_UDP_RMEM_BYTES"
+    cat > "$RMEM_SYSCTL" <<EOF
+# install-hf-node.sh tarafindan yazildi (variables.env SYSLOG_UDP_RMEM_BYTES)
+net.core.rmem_default = ${SYSLOG_UDP_RMEM_BYTES}
+net.core.rmem_max = ${rmem_max}
+EOF
+    echo "rmem_default=${SYSLOG_UDP_RMEM_BYTES} rmem_max=${rmem_max}"
+else
+    rm -f "$RMEM_SYSCTL"
+    echo "SYSLOG_UDP_RMEM_BYTES=0: rmem'e dokunulmadi (onceki deger reboot'a kadar aktif kalabilir)"
+fi
 sysctl --system >/dev/null
 
 render "$HERE/hf-nodes/systemd/lvs-realserver-vip.service" /etc/systemd/system/lvs-realserver-vip.service
 
 echo "== rsyslog listener =="
 render "$HERE/hf-nodes/rsyslog.d/49-hf-syslog-listener.conf" /etc/rsyslog.d/49-hf-syslog-listener.conf
+if [ "${SYSLOG_QUEUE_DISK:-no}" = "yes" ]; then
+    sed -i 's/^#DAQ# //' /etc/rsyslog.d/49-hf-syslog-listener.conf
+    echo "rsyslog disk destekli kuyruk ACIK (max ${SYSLOG_QUEUE_MAX_DISK:-2g})"
+else
+    sed -i '/^#DAQ#/d' /etc/rsyslog.d/49-hf-syslog-listener.conf
+    echo "rsyslog disk destekli kuyruk KAPALI"
+fi
+rsyslogd -N1 >/dev/null || { echo "HATA: rsyslog config dogrulamasi basarisiz (rsyslogd -N1)" >&2; exit 1; }
 
 echo "== ${DATA_DIR} + rsyslog AppArmor izni =="
 # rsyslog'un per-source-IP dosyalari yazdigi dizin (${DATA_DIR}/<kaynak-ip>/).

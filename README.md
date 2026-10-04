@@ -197,6 +197,13 @@ test script'inin threading deseninde.
   isteyen `variables.env`'de `SYSLOG_RETENTION_HOURS`'u değiştirip
   `install-hf-node.sh`'ı yeniden çalıştırır. Temizliği zaten kendi
   cron/logrotate'i yapan HF'lerde `SYSLOG_RETENTION_HOURS=0` ile timer kapatılır.
+- **rsyslog ayarları (`variables.env`).** `SYSLOG_QUEUE_SIZE/WORKERS/BATCH`
+  `splunk` ruleset kuyruğunu, `SYSLOG_UDP_RMEM_BYTES` (varsayılan 32 MB) HF'nin
+  UDP alma buffer'ını (`net.core.rmem_default`/`rmem_max`) belirler — yüksek
+  EPS'teki UDP kaybı kuyruktan önce, socket buffer'da olur. `SYSLOG_QUEUE_DISK=yes`
+  disk destekli kuyruğu açar (varsayılan kapalı; sınırları `variables.env`'de).
+  Config legacy `$` syntax'ındadır; `$MainMsgQueue*` ayarları rsyslog'un sistem
+  ana kuyruğuna da uygulanır.
 - **HEC ve indexer acknowledgment (`useACK`).** Ack sorgusu, o channel'ın
   event'lerini alan HF'ye gitmek zorunda; düz roundrobin bunu bozar.
   `HEC_SSL=0` iken HAProxy `mode http` çalışır: her istek ayrı dengelenir
