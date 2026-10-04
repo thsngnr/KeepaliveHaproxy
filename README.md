@@ -75,12 +75,15 @@ scripts/
   install-lb-node.sh           # LB node'a dosyaları kurar + servisleri başlatır
   install-hf-node.sh           # HF node'a dosyaları kurar + servisleri başlatır
   lib.sh                       # ortak render (yer tutucu kontrolü) + HF_NODES
+  ci-check.sh                  # tüm doğrulamalar (docker); CI de bunu çalıştırır
   gen-vrrp-key.sh              # VRRP auth_hmac key dosyasını üretir
   prepare-offline-bundle.sh    # Air-gapped LB kurulumu için paket bundle'ı hazırlar
 loadtest/
   loadtest.py                  # Çoklu source-IP TCP+UDP eşzamanlı yük testi
   loadtest_high_volume.py      # Yüksek hacimli (1M+, >200k eps) sürüm
   loadtest_tcp.py              # Sadece TCP, parametreli (bağlantı/mesaj sayısı)
+tests/lb-status/               # lb-status uçtan uca testi (ci-check.sh çalıştırır)
+.github/workflows/ci.yml       # push/PR'da ci-check.sh
 variables.env                  # ŞABLON: tüm değişkenler + örnek değerler (gerçek değer yazma)
 variables.env.local            # gerçek değerler (sen oluşturursun, .gitignore'da)
 ```
@@ -307,3 +310,19 @@ test script'inin threading deseninde.
   bırakılırsa (varsayılan) haproxy.cfg'ye hiçbir şey eklenmez. DS istemcileri LB
   IP'si olarak görür (proxy); kimlik GUID/hostname ile tutulur. Tek hedef
   olduğundan HA sağlamaz, sadece sabit giriş adresi verir.
+
+## Değişiklik yaptıktan sonra doğrulama (CI)
+
+```bash
+./scripts/ci-check.sh     # gerekli: docker; ~1-2 dk
+```
+
+GitHub Actions her push/PR'da aynısını çalıştırır (`.github/workflows/ci.yml`).
+Kontroller: shellcheck; Python 3.6 söz dizimi; tüm şablonların birkaç
+`variables` varyantıyla (2/3/5 HF, eski `HF1_*` formatı, HEC http/TLS, DS,
+VMAC, disk kuyruğu) render edilmesi — doldurulmamış `<YER_TUTUCU>` kalırsa
+hata; `haproxy -c` (3.4); `keepalived -t` (lb1+lb2; imajdaki keepalived
+`auth_hmac`'i bilmediği için o blok hariç); `rsyslogd -N1` (8.2312 ve RHEL 7'nin
+8.24'ü); `tests/lb-status` uçtan uca testi (sahte HAProxy/HF/HEC/Slack ile
+uyarı, tekrar etmeme, düzelme, Slack kapalı, HEC yedek hedef). Kurulum
+script'leri ve CI aynı `scripts/lib.sh` render fonksiyonlarını kullanır.

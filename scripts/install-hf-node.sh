@@ -82,12 +82,10 @@ sysctl --system >/dev/null
 render "$HERE/hf-nodes/systemd/lvs-realserver-vip.service" /etc/systemd/system/lvs-realserver-vip.service
 
 echo "== rsyslog listener =="
-render "$HERE/hf-nodes/rsyslog.d/49-hf-syslog-listener.conf" /etc/rsyslog.d/49-hf-syslog-listener.conf
-if [ "${SYSLOG_QUEUE_DISK:-no}" = "yes" ]; then
-    sed -i 's/^#DAQ# //' /etc/rsyslog.d/49-hf-syslog-listener.conf
-    echo "rsyslog disk destekli kuyruk ACIK (max ${SYSLOG_QUEUE_MAX_DISK:-2g})"
+render_rsyslog_conf "$HERE/hf-nodes/rsyslog.d/49-hf-syslog-listener.conf" /etc/rsyslog.d/49-hf-syslog-listener.conf
+if [ "${SYSLOG_QUEUE_DISK}" = "yes" ]; then
+    echo "rsyslog disk destekli kuyruk ACIK (max ${SYSLOG_QUEUE_MAX_DISK})"
 else
-    sed -i '/^#DAQ#/d' /etc/rsyslog.d/49-hf-syslog-listener.conf
     echo "rsyslog disk destekli kuyruk KAPALI"
 fi
 rsyslogd -N1 >/dev/null || { echo "HATA: rsyslog config dogrulamasi basarisiz (rsyslogd -N1)" >&2; exit 1; }

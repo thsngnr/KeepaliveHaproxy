@@ -121,23 +121,15 @@ fi
 keepalived --version | head -1
 
 echo "== $ROLE: haproxy.cfg =="
-render "$HERE/lb-nodes/common/haproxy/haproxy.cfg" /etc/haproxy/haproxy.cfg
-# Opsiyonel Deployment Server yonlendirmesi: DS_IP doluysa #DS# satirlari aktif,
-# bos ise silinir.
+render_haproxy_cfg "$HERE/lb-nodes/common/haproxy/haproxy.cfg" /etc/haproxy/haproxy.cfg
 if [ -n "${DS_IP:-}" ]; then
-    sed -i 's/^#DS# \?//' /etc/haproxy/haproxy.cfg
-    echo "Deployment Server yonlendirme ACIK: ${VIP_IP}:${DS_LISTEN_PORT:-8089} -> ${DS_IP}:${DS_PORT:-8089}"
+    echo "Deployment Server yonlendirme ACIK: ${VIP_IP}:${DS_LISTEN_PORT} -> ${DS_IP}:${DS_PORT}"
 else
-    sed -i '/^#DS#/d' /etc/haproxy/haproxy.cfg
     echo "Deployment Server yonlendirme KAPALI (DS_IP bos)"
 fi
-# HEC modu: HEC_SSL=1 ise TLS passthrough (mode tcp), degilse mode http +
-# channel bazli yapiskanlik (useACK icin).
-if [ "${HEC_SSL:-0}" = "1" ]; then
-    sed -i -e 's/^#HECTLS# //' -e '/^#HECHTTP#/d' /etc/haproxy/haproxy.cfg
-    echo "HEC: TLS passthrough (mode tcp), balance ${HEC_TLS_BALANCE:-source}"
+if [ "${HEC_SSL}" = "1" ]; then
+    echo "HEC: TLS passthrough (mode tcp), balance ${HEC_TLS_BALANCE}"
 else
-    sed -i -e 's/^#HECHTTP# //' -e '/^#HECTLS#/d' /etc/haproxy/haproxy.cfg
     echo "HEC: mode http, X-Splunk-Request-Channel bazli yapiskanlik"
 fi
 
@@ -203,14 +195,12 @@ if [ ! -f /etc/keepalived/keys/vrrp200 ]; then
 fi
 systemctl stop keepalived 2>/dev/null || true
 ip link del vrrp200 2>/dev/null || true   # eski kurulumdan kalan VMAC arayuzu
-render "$HERE/lb-nodes/$ROLE/keepalived/keepalived.conf" /etc/keepalived/keepalived.conf
+render_keepalived_conf "$HERE/lb-nodes/$ROLE/keepalived/keepalived.conf" /etc/keepalived/keepalived.conf
 # Sanal MAC opsiyonel: ESXi "Forged Transmits/MAC Changes" Reject ise VMAC
 # cikista dusurulur (bkz. variables.env USE_VMAC).
-if [ "${USE_VMAC:-no}" = "yes" ]; then
-    sed -i 's/^    #VMAC# /    /' /etc/keepalived/keepalived.conf
+if [ "${USE_VMAC}" = "yes" ]; then
     echo "VRRP sanal MAC (use_vmac) ACIK"
 else
-    sed -i '/^    #VMAC# /d' /etc/keepalived/keepalived.conf
     echo "VRRP sanal MAC KAPALI -- VIP ${VRRP_INTERFACE} uzerinde, gercek MAC ile"
 fi
 

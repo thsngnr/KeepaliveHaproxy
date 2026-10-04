@@ -146,3 +146,42 @@ render() {
     cat "$tmp" > "$dst"
     rm -f "$tmp"
 }
+
+# --- Opsiyonel bloklar: render + isaretli satirlarin acilmasi/silinmesi ---
+# Kurulum script'leri VE CI (scripts/ci-check.sh) ayni fonksiyonlari kullanir;
+# CI boylece kurulumun gercekte urettigi config'i dogrular.
+
+# haproxy.cfg: #DS# (DS_IP doluysa) ve #HECHTTP# / #HECTLS# (HEC_SSL)
+render_haproxy_cfg() {
+    render "$1" "$2"
+    if [ -n "${DS_IP:-}" ]; then
+        sed -i 's/^#DS# \?//' "$2"
+    else
+        sed -i '/^#DS#/d' "$2"
+    fi
+    if [ "${HEC_SSL:-0}" = "1" ]; then
+        sed -i -e 's/^#HECTLS# //' -e '/^#HECHTTP#/d' "$2"
+    else
+        sed -i -e 's/^#HECHTTP# //' -e '/^#HECTLS#/d' "$2"
+    fi
+}
+
+# keepalived.conf: #VMAC# (USE_VMAC=yes)
+render_keepalived_conf() {
+    render "$1" "$2"
+    if [ "${USE_VMAC:-no}" = "yes" ]; then
+        sed -i 's/^    #VMAC# /    /' "$2"
+    else
+        sed -i '/^    #VMAC# /d' "$2"
+    fi
+}
+
+# rsyslog listener: #DAQ# (SYSLOG_QUEUE_DISK=yes)
+render_rsyslog_conf() {
+    render "$1" "$2"
+    if [ "${SYSLOG_QUEUE_DISK:-no}" = "yes" ]; then
+        sed -i 's/^#DAQ# //' "$2"
+    else
+        sed -i '/^#DAQ#/d' "$2"
+    fi
+}
