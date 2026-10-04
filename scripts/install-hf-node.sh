@@ -12,7 +12,9 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$HERE/variables.env"
+# shellcheck source=scripts/lib.sh
+source "$HERE/scripts/lib.sh"
+load_vars "$HERE"   # variables.env + varsayilanlar + HF_NODES dogrulamasi
 
 PRIMARY_IF="${1:-eth0}"   # DR sysctl dosyasındaki per-interface satırları için
 
@@ -28,6 +30,7 @@ echo "Servis kullanicisi: ${SVC_USER}:${SVC_GROUP}"
 
 # Splunk host_segment: <DATA_DIR>/<kaynak-ip>/... yolunda <kaynak-ip>'nin sirasi
 # (/data/log/splunk/syslog -> 4 parca -> kaynak-ip 5. parca).
+# shellcheck disable=SC2034  # render() bunu <HOST_SEGMENT> icin dolayli okur
 HOST_SEGMENT="$(awk -F/ '{n=0; for (i=1; i<=NF; i++) if ($i != "") n++; print n+1}' <<<"$DATA_DIR")"
 SYSLOG_RETENTION_HOURS="${SYSLOG_RETENTION_HOURS:-5}"
 case "$SYSLOG_RETENTION_HOURS" in
@@ -38,35 +41,6 @@ case "$SYSLOG_UDP_RMEM_BYTES" in
     ''|*[!0-9]*) echo "HATA: SYSLOG_UDP_RMEM_BYTES sayi olmali ('${SYSLOG_UDP_RMEM_BYTES}')" >&2; exit 1 ;;
 esac
 
-render() {
-    sed \
-        -e "s/<VIP_IP>/${VIP_IP}/g" \
-        -e "s/<LB1_IP>/${LB1_IP}/g" \
-        -e "s/<LB2_IP>/${LB2_IP}/g" \
-        -e "s/<HF1_IP>/${HF1_IP}/g" \
-        -e "s/<HF2_IP>/${HF2_IP}/g" \
-        -e "s/<HF3_IP>/${HF3_IP}/g" \
-        -e "s/<INDEXER_IP>/${INDEXER_IP}/g" \
-        -e "s/<HEC_TOKEN>/${HEC_TOKEN}/g" \
-        -e "s/<SYSLOG_PORT>/${SYSLOG_PORT}/g" \
-        -e "s/<HEC_PORT>/${HEC_PORT}/g" \
-        -e "s/<READYZ_PORT>/${READYZ_PORT}/g" \
-        -e "s/<INDEXER_RECEIVING_PORT>/${INDEXER_RECEIVING_PORT}/g" \
-        -e "s|<DATA_DIR>|${DATA_DIR}|g" \
-        -e "s/<HEC_SSL>/${HEC_SSL:-0}/g" \
-        -e "s/<SVC_USER>/${SVC_USER}/g" \
-        -e "s/<SVC_GROUP>/${SVC_GROUP}/g" \
-        -e "s/<HOST_SEGMENT>/${HOST_SEGMENT}/g" \
-        -e "s/<SYSLOG_INDEX>/${SYSLOG_INDEX:-main}/g" \
-        -e "s/<SYSLOG_RETENTION_HOURS>/${SYSLOG_RETENTION_HOURS}/g" \
-        -e "s/<SYSLOG_QUEUE_SIZE>/${SYSLOG_QUEUE_SIZE:-100000}/g" \
-        -e "s/<SYSLOG_QUEUE_WORKERS>/${SYSLOG_QUEUE_WORKERS:-2}/g" \
-        -e "s/<SYSLOG_QUEUE_BATCH>/${SYSLOG_QUEUE_BATCH:-1024}/g" \
-        -e "s/<SYSLOG_QUEUE_MAX_DISK>/${SYSLOG_QUEUE_MAX_DISK:-2g}/g" \
-        -e "s/<READYZ_DISK_FREE_PCT_MIN>/${READYZ_DISK_FREE_PCT_MIN:-10}/g" \
-        -e "s/<READYZ_DISK_FREE_MB_MIN>/${READYZ_DISK_FREE_MB_MIN:-0}/g" \
-        "$1" > "$2"
-}
 
 echo "== paketler =="
 if command -v apt-get >/dev/null; then

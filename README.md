@@ -1,6 +1,6 @@
 # Splunk Syslog + HEC HA Mimarisi — Deploy Template
 
-2 LB node (keepalived + HAProxy, active/passive) + 3 Splunk Heavy Forwarder (HF)
+2 LB node (keepalived + HAProxy, active/passive) + N Splunk Heavy Forwarder (HF; örnekte 3)
 node'u için hazır, test edilmiş config template'i. Üretimde doğrulanmıştır:
 TCP 514 ve UDP 514 syslog **IPVS Direct Routing** (keepalived) ile, HEC (8088)
 **HAProxy** ile load-balance edilir; syslog'da gerçek client source IP, HF'lerde
@@ -55,7 +55,7 @@ lb-nodes/
     keepalived/check_hf_ready.sh
   lb1/keepalived/keepalived.conf   # lb1'e özel (priority, unicast_src_ip)
   lb2/keepalived/keepalived.conf   # lb2'ye özel
-hf-nodes/                      # Her 3 HF node'da BİREBİR aynı dosyalar
+hf-nodes/                      # Her HF node'da BİREBİR aynı dosyalar
   rsyslog.d/49-hf-syslog-listener.conf
   sysctl.d/60-lvs-dr-realserver.conf
   systemd/lvs-realserver-vip.service
@@ -67,6 +67,7 @@ hf-nodes/                      # Her 3 HF node'da BİREBİR aynı dosyalar
 scripts/
   install-lb-node.sh           # LB node'a dosyaları kurar + servisleri başlatır
   install-hf-node.sh           # HF node'a dosyaları kurar + servisleri başlatır
+  lib.sh                       # ortak render (yer tutucu kontrolü) + HF_NODES
   gen-vrrp-key.sh              # VRRP auth_hmac key dosyasını üretir
   prepare-offline-bundle.sh    # Air-gapped LB kurulumu için paket bundle'ı hazırlar
 loadtest/
@@ -75,17 +76,17 @@ loadtest/
 variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığı dosya
 ```
 
-## Önkoşullar (hedef 5 host için)
+## Önkoşullar (2 LB + N HF)
 
 - **lb1, lb2**: Ubuntu 24.04+ (veya benzeri), aynı L2 subnet'te, 3. network üzerinden
   birbirine unicast VRRP ulaşabiliyor olmalı.
-- **hf1, hf2, hf3**: Splunk kurulu (Heavy Forwarder rolü), aynı L2 subnet'te
+- **HF'ler (`HF_NODES`, 2, 3 veya daha fazla)**: Splunk kurulu (Heavy Forwarder rolü), aynı L2 subnet'te
   (IPVS-DR aynı broadcast domain gerektirir — router arkasında olamaz).
   Ubuntu/Debian veya RHEL 7/8/9 ailesi; rsyslog ≥ 8.24 (RHEL 7'nin sürümü).
   `install-hf-node.sh` Ubuntu'da AppArmor'a, SELinux açıksa `DATA_DIR`'e
   `var_log_t` etiketi (`semanage fcontext` + `restorecon`) verir. firewalld
   açıksa 514/tcp+udp, HEC ve readyz portları kapalıysa uyarır (otomatik açmaz).
-- Her 5 host'ta: `rsyslog`, `haproxy` (sadece lb'lerde), `keepalived` (sadece
+- Tüm host'larda: `rsyslog`, `haproxy` (sadece lb'lerde), `keepalived` (sadece
   lb'lerde), `ipvsadm`+`ip_vs` kernel modülü (lb'lerde), Python 3 (hf'lerde).
 - Splunk'ta bir HEC token (tüm HF'lerde **aynı token değeri**, enableSSL=0).
 
@@ -124,7 +125,7 @@ flowchart LR
     class A,B,C,D,E,F,G step
 ```
 
-1. `variables.env` dosyasını doldur (VIP, lb1/lb2 IP'leri, hf1/2/3 IP'leri,
+1. `variables.env` dosyasını doldur (VIP, lb1/lb2 IP'leri, `HF_NODES` (ad:ip listesi),
    indexer IP'si, HEC token, router_id'ler).
 2. **Önce HF'ler**: her hf node'da `scripts/install-hf-node.sh` çalıştır.
    - VIP'i `lo:vip200`'e ekler (ARP suppression sysctl'leriyle birlikte)
@@ -220,7 +221,7 @@ test script'inin threading deseninde.
   `check_hf_ready.sh <ip> tcp|udp` → `/readyz/syslog` (rsyslog, listener'lar,
   disk) ile kontrol edilir, havuz başına ayrı rise sayacı tutulur; TCP ayrıca
   `TCP_CHECK`'i korur. Diski dolan bir HF iki havuzdan birden çıkar.
-- **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — 3 HF'nin de syslog
+- **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — tüm HF'lerin syslog
   tarafı düşse bile VIP/VRRP failover tetiklenmez (bu bir alerting durumu,
   failover sebebi değil). Sadece HAProxy/8088 sağlığı VRRP'yi etkiler.
 - **HEC token değeri** tüm HF'lerde aynı olmalı (stanza adı farklı olabilir,

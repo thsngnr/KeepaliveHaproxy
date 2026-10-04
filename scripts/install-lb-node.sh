@@ -34,7 +34,10 @@ if [ -n "$OFFLINE_DIR" ]; then
 fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$HERE/variables.env"
+# shellcheck source=scripts/lib.sh
+source "$HERE/scripts/lib.sh"
+load_vars "$HERE"   # variables.env + varsayilanlar + HF_NODES dogrulamasi
+echo "HF sayisi: ${HF_COUNT} ($(echo $HF_NODES))"
 
 # Yanlis doldurulmus variables.env, VRRP'yi sessizce bozar (unicast_src_ip
 # baska makinenin IP'si olursa node'lar birbirinin advert'ini gormez ->
@@ -49,32 +52,6 @@ if ! ip -4 -o addr show | grep -q "inet ${OWN_IP}/"; then
     exit 1
 fi
 
-render() {
-    # $1=src $2=dst -- her <PLACEHOLDER> değerini variables.env'den doldurur
-    sed \
-        -e "s/<VIP_IP>/${VIP_IP}/g" \
-        -e "s/<VIP_PREFIX>/${VIP_PREFIX:-32}/g" \
-        -e "s/<LB1_IP>/${LB1_IP}/g" \
-        -e "s/<LB2_IP>/${LB2_IP}/g" \
-        -e "s/<LB1_ROUTER_ID>/${LB1_ROUTER_ID}/g" \
-        -e "s/<LB2_ROUTER_ID>/${LB2_ROUTER_ID}/g" \
-        -e "s/<VRRP_VIRTUAL_ROUTER_ID>/${VRRP_VIRTUAL_ROUTER_ID}/g" \
-        -e "s/<VRRP_INTERFACE>/${VRRP_INTERFACE}/g" \
-        -e "s/<HF1_IP>/${HF1_IP}/g" \
-        -e "s/<HF2_IP>/${HF2_IP}/g" \
-        -e "s/<HF3_IP>/${HF3_IP}/g" \
-        -e "s/<HF1_NAME>/${HF1_NAME}/g" \
-        -e "s/<HF2_NAME>/${HF2_NAME}/g" \
-        -e "s/<HF3_NAME>/${HF3_NAME}/g" \
-        -e "s/<SYSLOG_PORT>/${SYSLOG_PORT}/g" \
-        -e "s/<HEC_PORT>/${HEC_PORT}/g" \
-        -e "s/<READYZ_PORT>/${READYZ_PORT}/g" \
-        -e "s/<DS_IP>/${DS_IP:-}/g" \
-        -e "s/<DS_PORT>/${DS_PORT:-8089}/g" \
-        -e "s/<DS_LISTEN_PORT>/${DS_LISTEN_PORT:-8089}/g" \
-        -e "s/<HEC_TLS_BALANCE>/${HEC_TLS_BALANCE:-source}/g" \
-        "$1" > "$2"
-}
 
 # haproxy hariç -- o ayrıca (vbernat PPA'dan 3.4 sürümü ile) kuruluyor,
 # bkz. aşağıdaki "haproxy 3.4" bölümü. Gerisi ipvsadm/ipset (LB için) ve
