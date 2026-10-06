@@ -104,6 +104,10 @@ else
     apt-get install -y "haproxy=3.4.*"
 fi
 modprobe ip_vs 2>/dev/null || true
+# ip_vs acilista yuklenmezse systemd-sysctl, net.ipv4.vs.* anahtarlari henuz
+# yokken calisir ve 61-ipvs-expire-nodest.conf SESSIZCE uygulanmaz (reboot
+# sonrasi expire_nodest_conn=0'a doner). modules-load, sysctl'den once calisir.
+echo ip_vs > /etc/modules-load.d/ip_vs.conf
 
 echo "== $ROLE: expire_nodest_conn (IPVS'in dusen real_server'a sabitlenmis akislari kurtarmasi) =="
 cp "$HERE/lb-nodes/common/sysctl/61-ipvs-expire-nodest.conf" /etc/sysctl.d/61-ipvs-expire-nodest.conf

@@ -211,3 +211,21 @@ test script'inin threading deseninde.
   bırakılırsa (varsayılan) haproxy.cfg'ye hiçbir şey eklenmez. DS istemcileri LB
   IP'si olarak görür (proxy); kimlik GUID/hostname ile tutulur. Tek hedef
   olduğundan HA sağlamaz, sadece sabit giriş adresi verir.
+
+- **HF geri dönünce akışlar OTOMATİK geri dağılmaz (bilinen sınır).** IPVS sadece
+  *yeni* akışları zamanlar; mevcut TCP bağlantıları ve trafiği süren UDP akışları
+  (IPVS UDP zaman aşımı 300 sn, her paketle yenilenir) bulundukları HF'te kalır.
+  Lab testi (2026-10-06, 100 TCP + 100 UDP uzun akış, HF2 rsyslog 107 sn kapalı):
+  HF2 TCP'de ~3 sn, UDP'de ~8 sn içinde havuzdan çıktı, akışlar HF1/HF3'e
+  kaydı (kayıp yok, `expire_nodest_conn=1` ile); HF2 geri geldikten sonra 175+ sn
+  boyunca **0 paket** aldı. Bir HF kısa süreliğine düşerse tüm akışlar diğerlerinde
+  birikebilir. Dağılımı geri almak için planlı bir VRRP geçişi (yeni master'ın
+  bağlantı tablosu boştur) veya keepalived restart gerekir; TCP istemcileri
+  yeniden bağlanır. `ipvsadm -L -n` ActiveConn/InActConn dağılımını izleyip
+  sapmada alarm ver.
+- **`expire_nodest_conn` reboot sonrası kaybolmasın:** `ip_vs` modülü açılışta
+  sysctl'den sonra yüklenirse `61-ipvs-expire-nodest.conf` uygulanmaz ve değer
+  sessizce 0'a döner (lab'da bir LB reboot'tan sonra bu şekilde 0 kaldı; 0 iken
+  HF havuzdan çıkınca UDP akışlarının ~1/3'ü o HF geri gelene kadar kayboluyor).
+  `install-lb-node.sh` artık `/etc/modules-load.d/ip_vs.conf` yazar.
+  Kontrol: `sysctl net.ipv4.vs.expire_nodest_conn` (1 olmalı).
