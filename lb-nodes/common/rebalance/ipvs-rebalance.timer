@@ -1,0 +1,10 @@
+[Unit]
+Description=IPVS HF dagilim kontrolu (5 dk)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

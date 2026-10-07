@@ -183,6 +183,30 @@ else
     echo "VRRP sanal MAC KAPALI -- VIP ${VRRP_INTERFACE} uzerinde, gercek MAC ile"
 fi
 
+echo "== $ROLE: IPVS dagilim kontrolu (ipvs-rebalance, mod: ${REBALANCE_MODE:-alert}) =="
+if [ "$ROLE" = "lb1" ]; then PEER_IP="$LB2_IP"; else PEER_IP="$LB1_IP"; fi
+install -m 0755 "$HERE/lb-nodes/common/rebalance/ipvs-rebalance.sh" /usr/local/sbin/ipvs-rebalance.sh
+cp "$HERE/lb-nodes/common/rebalance/ipvs-rebalance.service" /etc/systemd/system/ipvs-rebalance.service
+cp "$HERE/lb-nodes/common/rebalance/ipvs-rebalance.timer" /etc/systemd/system/ipvs-rebalance.timer
+cat > /etc/ipvs-rebalance.env <<EOF
+VIP_IP=${VIP_IP}
+SYSLOG_PORT=${SYSLOG_PORT}
+HEC_PORT=${HEC_PORT}
+HF_IPS="${HF1_IP} ${HF2_IP} ${HF3_IP}"
+PEER_IP=${PEER_IP}
+REBALANCE_MODE=${REBALANCE_MODE:-alert}
+REBALANCE_SKEW_RATIO=${REBALANCE_SKEW_RATIO:-0.5}
+REBALANCE_MIN_CONNS=${REBALANCE_MIN_CONNS:-30}
+REBALANCE_STABLE_SECS=${REBALANCE_STABLE_SECS:-600}
+REBALANCE_COOLDOWN_SECS=${REBALANCE_COOLDOWN_SECS:-21600}
+EOF
+systemctl daemon-reload
+if [ "${REBALANCE_MODE:-alert}" = "off" ]; then
+    systemctl disable --now ipvs-rebalance.timer 2>/dev/null || true
+else
+    systemctl enable --now ipvs-rebalance.timer
+fi
+
 echo "== $ROLE: config doğrulama =="
 haproxy -c -f /etc/haproxy/haproxy.cfg
 keepalived -t -f /etc/keepalived/keepalived.conf

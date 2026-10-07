@@ -229,3 +229,15 @@ test script'inin threading deseninde.
   HF havuzdan çıkınca UDP akışlarının ~1/3'ü o HF geri gelene kadar kayboluyor).
   `install-lb-node.sh` artık `/etc/modules-load.d/ip_vs.conf` yazar.
   Kontrol: `sysctl net.ipv4.vs.expire_nodest_conn` (1 olmalı).
+
+- **Dağılım kontrolü / otomatik yeniden dengeleme (`ipvs-rebalance`).** Her LB'de
+  5 dk'da bir çalışır (systemd timer); yalnızca VIP'i tutan node değerlendirir.
+  Tüm HF'ler TCP+UDP havuzundayken HF başına akış sayısını (`ipvsadm -L -n -c`)
+  ölçer, en az yüklü HF adil payın `REBALANCE_SKEW_RATIO` (0,5) altındaysa dengesiz sayar.
+  `REBALANCE_MODE=alert` (varsayılan): `logger -t ipvs-rebalance` ile uyarı yazar
+  (Splunk'ta alarmlanabilir). `auto`: dengesizlik 2 ardışık ölçümde sürerse ve karşı LB
+  hazırsa (ping + haproxy portu) ve cooldown (6 sa) dolmuşsa master'da keepalived'i
+  yeniden başlatır; VRRP karşı LB'ye geçer, bağlantı tablosu sıfırlanır, akışlar
+  yeniden dağılır. Lab testi: HF2 50 sn kapalı kaldı, geri dönünce 10/0/10 olan dağılım
+  otomatik geçişle 6/7/7'ye döndü. Durum: `cat /run/ipvs-rebalance/last_summary`,
+  loglar: `journalctl -t ipvs-rebalance`.

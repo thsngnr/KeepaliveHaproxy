@@ -1,0 +1,7 @@
+[Unit]
+Description=IPVS HF dagilim kontrolu / yeniden dengeleme
+After=keepalived.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ipvs-rebalance.sh
