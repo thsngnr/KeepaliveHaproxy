@@ -255,3 +255,14 @@ test script'inin threading deseninde.
   her girdi 64 KB tampon tutar (1000 ≈ 64 MB RAM) ve açık dosya başına bir fd
   gerekir, bu yüzden script rsyslog için `LimitNOFILE=65536` drop-in'i de yazar.
   Prodda önce `nstat -az UdpRcvbufErrors` değerinin artıp artmadığına bak.
+
+- **UDP one-packet scheduling (`UDP_OPS=yes`).** IPVS varsayılan olarak UDP akışını
+  (kaynak IP:port) tek HF'e sabitler. Prodda tek bir yoğun UDP kaynağı UDP baytlarının
+  ~%69'unu tek HF'e yığdı ve HF havuzdan çıkıp dönünce akışlar geri dağılmadı.
+  `UDP_OPS=yes` ile keepalived UDP virtual_server'a `ops` ekler. Lab ölçümü
+  (tek kaynak IP:port, 90.000 datagram): ops kapalı → tamamı tek HF'e; ops açık →
+  30.000/30.000/30.000. HF kapalıyken kalan ikisine bölünür (15.000/0/15.000), HF dönünce
+  aynı akış anında 10.000×3 dağılır. 2.500 B'lık (IP parçalanan) 6.000 datagram'ın
+  tamamı teslim edildi. Dikkat: aynı kaynağın logları 3 HF'e ve 3 `<kaynak-ip>/`
+  dizinine dağılır; çok-datagram'lı mantıksal olay üreten cihazlarda bölünebilir; LB'de
+  paket başına bağlantı kaydı oluşur (CPU'yu izle). TCP etkilenmez.

@@ -173,6 +173,15 @@ fi
 systemctl stop keepalived 2>/dev/null || true
 ip link del vrrp200 2>/dev/null || true   # eski kurulumdan kalan VMAC arayuzu
 render "$HERE/lb-nodes/$ROLE/keepalived/keepalived.conf" /etc/keepalived/keepalived.conf
+# UDP one-packet scheduling (ops): her datagram ayri zamanlanir, tek buyuk UDP
+# akisi HF'lere bolunur ve HF donunce dagilim aninda toparlanir (bkz. variables.env UDP_OPS).
+if [ "${UDP_OPS:-no}" = "yes" ]; then
+    sed -i 's/^    #OPS# /    /' /etc/keepalived/keepalived.conf
+    echo "UDP one-packet scheduling (ops) ACIK"
+else
+    sed -i '/^    #OPS# /d' /etc/keepalived/keepalived.conf
+    echo "UDP one-packet scheduling KAPALI (akis basina sabit HF)"
+fi
 # Sanal MAC opsiyonel: ESXi "Forged Transmits/MAC Changes" Reject ise VMAC
 # cikista dusurulur (bkz. variables.env USE_VMAC).
 if [ "${USE_VMAC:-no}" = "yes" ]; then
