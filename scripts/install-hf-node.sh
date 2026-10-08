@@ -53,6 +53,9 @@ echo "== paketler =="
 if command -v apt-get >/dev/null; then
     apt-get update -qq
     apt-get install -y rsyslog python3
+elif command -v dnf >/dev/null; then
+    # RHEL/Rocky/Alma: semanage (SELinux dosya baglami) icin policycoreutils-python-utils
+    dnf install -y rsyslog python3 policycoreutils-python-utils
 fi
 
 echo "== VIP loopback alias (DR) + ARP suppression =="
@@ -81,6 +84,19 @@ echo "== ${DATA_DIR} + rsyslog AppArmor izni =="
 # olusturamaz ve TUM loglar sessizce kaybolur (journal'da "Permission denied").
 # rsyslog syslog kullanicisina privilege-drop yaptigi icin dizin ona ait olmali.
 install -d -m 0755 -o "${SVC_USER}" -g "${SVC_GROUP}" "${DATA_DIR}"
+# RHEL: SELinux acikken rsyslogd_t, /data/... gibi ozel dizinlere (default_t/var_t)
+# yazamaz (AVC denial, loglar sessizce kaybolur). Dizini var_log_t olarak etiketle;
+# altinda rsyslog'un acacagi alt dizinler de bu etiketi miras alir.
+if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
+    if command -v semanage >/dev/null 2>&1; then
+        semanage fcontext -a -t var_log_t "${DATA_DIR}(/.*)?" 2>/dev/null \
+            || semanage fcontext -m -t var_log_t "${DATA_DIR}(/.*)?"
+        restorecon -R "${DATA_DIR}"
+        echo "SELinux: ${DATA_DIR} -> var_log_t"
+    else
+        echo "UYARI: SELinux acik ama semanage yok (policycoreutils-python-utils kur), ${DATA_DIR} etiketlenmedi." >&2
+    fi
+fi
 if [ -d /etc/apparmor.d/local ] && [ -f /etc/apparmor.d/usr.sbin.rsyslogd ]; then
     grep -qF "  ${DATA_DIR}/** rwk," /etc/apparmor.d/local/usr.sbin.rsyslogd 2>/dev/null || \
         printf '  %s/ rw,\n  %s/** rwk,\n' "${DATA_DIR}" "${DATA_DIR}" >> /etc/apparmor.d/local/usr.sbin.rsyslogd
