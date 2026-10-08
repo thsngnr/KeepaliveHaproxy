@@ -241,3 +241,17 @@ test script'inin threading deseninde.
   yeniden dağılır. Lab testi: HF2 50 sn kapalı kaldı, geri dönünce 10/0/10 olan dağılım
   otomatik geçişle 6/7/7'ye döndü. Durum: `cat /run/ipvs-rebalance/last_summary`,
   loglar: `journalctl -t ipvs-rebalance`.
+
+- **UDP alım tamponu ve dynaFile önbelleği (HF).** Varsayılan UDP tamponu (~208 KB)
+  yüksek EPS'te dolar ve paketler çekirdekte düşer (`nstat -az UdpRcvbufErrors`).
+  `install-hf-node.sh` `62-udp-rcvbuf.conf` ile `rmem_default/rmem_max = 25 MB` yazar
+  ve rsyslog'da `input(type="imudp" ... rcvbufSize="<UDP_RCVBUF>")` kullanır
+  (`rcvbufSize` çekirdekteki `rmem_max` ile kırpılır: 4 MB'ta 8 MB'a düşer, bu
+  yüzden ikisi birlikte gerekir). Lab A/B ölçümü, tek HF'e 400.000 UDP paket,
+  ~105k pkt/sn: varsayılan tamponla **7.085 kayıp (%1,8)**, 25 MB ile **0**.
+  Not: eski `$InputUDPServerRCVBufferSize` direktifi rsyslog 8.2512'de geçerli
+  DEĞİL (yapılandırma hatası verir, tampon büyümez).
+  `DYNAFILE_CACHE_SIZE` (varsayılan 1000) aktif kaynak IP sayısından büyük olmalı;
+  her girdi 64 KB tampon tutar (1000 ≈ 64 MB RAM) ve açık dosya başına bir fd
+  gerekir, bu yüzden script rsyslog için `LimitNOFILE=65536` drop-in'i de yazar.
+  Prodda önce `nstat -az UdpRcvbufErrors` değerinin artıp artmadığına bak.
