@@ -39,6 +39,7 @@ render() {
         -e "s/<INDEXER_RECEIVING_PORT>/${INDEXER_RECEIVING_PORT}/g" \
         -e "s|<DATA_DIR>|${DATA_DIR}|g" \
         -e "s/<HEC_SSL>/${HEC_SSL:-0}/g" \
+        -e "s/<SPLUNKD_PORT>/${SPLUNKD_PORT:-8089}/g" \
         -e "s/<UDP_RCVBUF>/${UDP_RCVBUF:-25m}/g" \
         -e "s/<DYNAFILE_CACHE_SIZE>/${DYNAFILE_CACHE_SIZE:-1000}/g" \
         -e "s/<SVC_USER>/${SVC_USER}/g" \
