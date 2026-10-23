@@ -45,6 +45,61 @@ flowchart TB
     class IDX idx
 ```
 
+## Projeyi indirme
+
+Repo: <https://github.com/thsngnr/KeepaliveHaproxy>
+
+```bash
+# 1) git ile (önerilen) -- her LB ve HF node'unda
+git clone https://github.com/thsngnr/KeepaliveHaproxy.git
+cd KeepaliveHaproxy
+
+# 2) git yoksa ZIP olarak
+curl -L -o KeepaliveHaproxy.zip \
+  https://github.com/thsngnr/KeepaliveHaproxy/archive/refs/heads/main.zip
+unzip KeepaliveHaproxy.zip && cd KeepaliveHaproxy-main
+```
+
+Tarayıcıdan: GitHub sayfasında **Code → Download ZIP**. İnternetsiz (air-gapped)
+host'lara repo'yu başka bir makinede indirip `scp`/USB ile taşı. Script'ler
+repo'nun **kök dizininden** çalıştırılır (`./scripts/...`) ve root yetkisi ister.
+
+## Hızlı kurulum (özet)
+
+```bash
+# 0) Repo'yu her node'a indir (yukarıya bak), kök dizine gir
+cd KeepaliveHaproxy
+
+# 1) variables.env'i düzenle (VIP, LB/HF IP'leri, indexer, HEC token...) ve
+#    AYNI dosyayı 5 node'un hepsine kopyala. Gerçek değerlerle COMMIT ETME.
+nano variables.env
+
+# 2) HER HF node'unda (hf1, hf2, hf3): arayüz adı farklıysa parametre ver
+sudo bash ./scripts/install-hf-node.sh eth0
+#    Script'in bastırdığı inputs.conf snippet'ini Splunk'a elle ekle,
+#    sonra: /opt/splunk/bin/splunk restart
+
+# 3) lb1'de VRRP anahtarını üret, lb2'ye AYNEN kopyala
+sudo ./scripts/gen-vrrp-key.sh
+sudo scp /etc/keepalived/keys/vrrp200 root@<LB2_IP>:/etc/keepalived/keys/vrrp200
+#    (lb2'de önce: sudo install -d -m 0700 /etc/keepalived/keys)
+
+# 4) LB node'larında
+sudo ./scripts/install-lb-node.sh lb1      # lb1'de
+sudo ./scripts/install-lb-node.sh lb2      # lb2'de
+#    İnternetsiz LB ise: ./scripts/install-lb-node.sh lb1 ./offline-bundle
+
+# 5) Doğrula
+sudo ipvsadm -L -n                         # 3 HF, TCP+UDP :514 görünmeli
+systemctl status keepalived haproxy
+ip -4 addr show | grep <VIP_IP>            # VIP master LB'de olmalı
+curl http://<HF1_IP>:9099/readyz           # HF sağlık servisi
+python3 loadtest/loadtest.py               # çoklu source-IP testi
+```
+
+Ayrıntılı açıklamalar için aşağıdaki "Önkoşullar" ve "Kurulum sırası"
+bölümlerine bak.
+
 ## Klasör yapısı
 
 ```
