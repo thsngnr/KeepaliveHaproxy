@@ -22,17 +22,16 @@ PACKAGES=(ipvsadm ipset build-essential libssl-dev libnl-3-dev
     libnl-genl-3-dev libnfnetlink-dev libipset-dev libsnmp-dev libmagic-dev
     pkg-config libxtables-dev libip4tc-dev libip6tc-dev)
 
-echo "== vbernat haproxy-3.4 PPA ekleniyor =="
+echo "== haproxy kaynagi (en guncel uygun seri) =="
 apt-get update -qq
-apt-get install --no-install-recommends -y software-properties-common
-add-apt-repository -y ppa:vbernat/haproxy-3.4
-apt-get update -qq
+source "$(dirname "${BASH_SOURCE[0]}")/lib-haproxy-repo.sh"
+setup_haproxy_repo
 
 echo "== apt paketleri indiriliyor (kurulum yapılmıyor, sadece indirme) =="
 # --download-only + Dir::Cache::Archives: paketleri kurmadan, bağımlılık
 # çözümünü apt'a bırakarak doğrudan hedef klasöre indirir.
 apt-get install -y --download-only -o "Dir::Cache::Archives=${OUT}/debs" \
-    "${PACKAGES[@]}" software-properties-common "haproxy=3.4.*"
+    "${PACKAGES[@]}" software-properties-common "$HAPROXY_PKG"
 # apt bazı .deb'leri "partial/" alt klasörüne indirebilir, düzelt:
 find "$OUT/debs" -name '*.deb' -path '*partial*' -exec mv {} "$OUT/debs/" \; 2>/dev/null || true
 rmdir "$OUT/debs/partial" 2>/dev/null || true

@@ -107,8 +107,8 @@ render() {
         > "$2"
 }
 
-# haproxy hariç -- o ayrıca (vbernat PPA'dan 3.4 sürümü ile) kuruluyor,
-# bkz. aşağıdaki "haproxy 3.4" bölümü. Gerisi ipvsadm/ipset (LB için) ve
+# haproxy hariç -- o ayrıca (en güncel uygun seri) kuruluyor,
+# bkz. aşağıdaki "haproxy" bölümü. Gerisi ipvsadm/ipset (LB için) ve
 # keepalived'i kaynaktan derlemek için gerekenler.
 PACKAGES=(ipvsadm ipset build-essential libssl-dev libnl-3-dev
     libnl-genl-3-dev libnfnetlink-dev libipset-dev libsnmp-dev libmagic-dev
@@ -117,7 +117,7 @@ PACKAGES=(ipvsadm ipset build-essential libssl-dev libnl-3-dev
 echo "== $ROLE: paketler =="
 if [ -n "$OFFLINE_DIR" ]; then
     # apt-get update/network YOK -- sadece offline-bundle/debs içindeki
-    # .deb dosyalarını kur (haproxy 3.4 dahil -- bundle PPA'dan hazırlandı).
+    # .deb dosyalarını kur (haproxy dahil -- bundle'da hazırlanan sürüm).
     # Bağımlılık çözümü için modern apt'ın yerel .deb dosyalarını doğrudan
     # kabul etmesine güveniyoruz; bundle'da transitive bağımlılıklar da
     # olmalı (prepare-offline-bundle.sh zaten hepsini indiriyor).
@@ -126,14 +126,12 @@ else
     apt-get update -qq
     apt-get install -y "${PACKAGES[@]}"
 
-    echo "== $ROLE: haproxy 3.4 (vbernat PPA) =="
-    # Ubuntu'nun kendi apt reposu eski bir haproxy sürümü taşıyor (ör.
-    # 26.04/resolute'ta 3.2.9); güncel 3.4 serisini vbernat'ın PPA'sından
-    # kuruyoruz.
-    apt-get install --no-install-recommends -y software-properties-common
-    add-apt-repository -y ppa:vbernat/haproxy-3.4
-    apt-get update -qq
-    apt-get install -y "haproxy=3.4.*"
+    echo "== $ROLE: haproxy (en guncel uygun seri) =="
+    # Ubuntu'nun kendi reposu eski haproxy tasir (noble'da 2.8); guncel seri
+    # vbernat PPA'sindan veya haproxy.debian.net'ten, kod adina uygun olan secilir.
+    source "$HERE/scripts/lib-haproxy-repo.sh"
+    setup_haproxy_repo
+    apt-get install -y "$HAPROXY_PKG"
 fi
 modprobe ip_vs 2>/dev/null || true
 # ip_vs acilista yuklenmezse systemd-sysctl, net.ipv4.vs.* anahtarlari henuz
