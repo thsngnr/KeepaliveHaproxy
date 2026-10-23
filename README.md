@@ -154,9 +154,12 @@ tarball'ı (keepalived.org). İnternetsiz bir LB için:
 ./scripts/install-lb-node.sh lb1 ./offline-bundle
 ```
 
-`prepare-offline-bundle.sh` haproxy'yi de aynı vbernat PPA'dan (3.4 serisi)
-indirir, böylece offline kurulum online kurulumla aynı haproxy sürümünü
-alır.
+HAProxy sürümü otomatik seçilir (`scripts/lib-haproxy-repo.sh`): bu Ubuntu kod adı
+(noble vb.) için yayınlanmış en güncel seri sırayla vbernat PPA'sından, sonra
+`haproxy.debian.net`'ten aranır (3.4 → 3.3 → 3.2 → 3.0); hiçbiri yoksa Ubuntu'nun
+kendi paketi (noble'da 2.8) kullanılır. Seriyi sabitlemek için:
+`HAPROXY_SERIES=3.2 ./scripts/install-lb-node.sh lb1`. Offline bundle da aynı
+seçimi yapar, böylece offline kurulum online kurulumla aynı haproxy sürümünü alır.
 
 ## HF sayısı (N adet HF)
 
