@@ -1,7 +1,7 @@
 # Splunk Syslog + HEC HA Mimarisi — Deploy Template
 
-2 LB node (keepalived + HAProxy, active/passive) + 3 Splunk Heavy Forwarder (HF)
-node'u için hazır, test edilmiş config template'i. Üretimde doğrulanmıştır:
+2 LB node (keepalived + HAProxy, active/passive) + **N adet** (en az 1, örnek
+diyagramda 3) Splunk Heavy Forwarder (HF) node'u için hazır, test edilmiş config template'i. Üretimde doğrulanmıştır:
 TCP 514 ve UDP 514 syslog **IPVS Direct Routing** (keepalived) ile, HEC (8088)
 **HAProxy** ile load-balance edilir; syslog'da gerçek client source IP, HF'lerde
 `$fromhost-ip` üzerinden korunur (HAProxy'den geçmez).
@@ -45,6 +45,61 @@ flowchart TB
     class IDX idx
 ```
 
+## Projeyi indirme
+
+Repo: <https://github.com/thsngnr/KeepaliveHaproxy>
+
+```bash
+# 1) git ile (önerilen) -- her LB ve HF node'unda
+git clone https://github.com/thsngnr/KeepaliveHaproxy.git
+cd KeepaliveHaproxy
+
+# 2) git yoksa ZIP olarak
+curl -L -o KeepaliveHaproxy.zip \
+  https://github.com/thsngnr/KeepaliveHaproxy/archive/refs/heads/main.zip
+unzip KeepaliveHaproxy.zip && cd KeepaliveHaproxy-main
+```
+
+Tarayıcıdan: GitHub sayfasında **Code → Download ZIP**. İnternetsiz (air-gapped)
+host'lara repo'yu başka bir makinede indirip `scp`/USB ile taşı. Script'ler
+repo'nun **kök dizininden** çalıştırılır (`./scripts/...`) ve root yetkisi ister.
+
+## Hızlı kurulum (özet)
+
+```bash
+# 0) Repo'yu her node'a indir (yukarıya bak), kök dizine gir
+cd KeepaliveHaproxy
+
+# 1) variables.env'i düzenle (VIP, LB IP'leri, HF_IPS listesi, indexer, HEC token...) ve
+#    AYNI dosyayı 5 node'un hepsine kopyala. Gerçek değerlerle COMMIT ETME.
+nano variables.env
+
+# 2) HER HF node'unda: arayüz adı farklıysa parametre ver
+sudo bash ./scripts/install-hf-node.sh eth0
+#    Script'in bastırdığı inputs.conf snippet'ini Splunk'a elle ekle,
+#    sonra: /opt/splunk/bin/splunk restart
+
+# 3) lb1'de VRRP anahtarını üret, lb2'ye AYNEN kopyala
+sudo ./scripts/gen-vrrp-key.sh
+sudo scp /etc/keepalived/keys/vrrp200 root@<LB2_IP>:/etc/keepalived/keys/vrrp200
+#    (lb2'de önce: sudo install -d -m 0700 /etc/keepalived/keys)
+
+# 4) LB node'larında
+sudo ./scripts/install-lb-node.sh lb1      # lb1'de
+sudo ./scripts/install-lb-node.sh lb2      # lb2'de
+#    İnternetsiz LB ise: ./scripts/install-lb-node.sh lb1 ./offline-bundle
+
+# 5) Doğrula
+sudo ipvsadm -L -n                         # HF_IPS'teki her HF, TCP+UDP :514 görünmeli
+systemctl status keepalived haproxy
+ip -4 addr show | grep <VIP_IP>            # VIP master LB'de olmalı
+curl http://<HF1_IP>:9099/readyz           # HF sağlık servisi
+python3 loadtest/loadtest.py               # çoklu source-IP testi
+```
+
+Ayrıntılı açıklamalar için aşağıdaki "Önkoşullar" ve "Kurulum sırası"
+bölümlerine bak.
+
 ## Klasör yapısı
 
 ```
@@ -55,7 +110,7 @@ lb-nodes/
     keepalived/check_hf_ready.sh
   lb1/keepalived/keepalived.conf   # lb1'e özel (priority, unicast_src_ip)
   lb2/keepalived/keepalived.conf   # lb2'ye özel
-hf-nodes/                      # Her 3 HF node'da BİREBİR aynı dosyalar
+hf-nodes/                      # Tüm HF node'larda BİREBİR aynı dosyalar
   rsyslog.d/49-hf-syslog-listener.conf
   sysctl.d/60-lvs-dr-realserver.conf
   systemd/lvs-realserver-vip.service
@@ -77,7 +132,7 @@ variables.env                  # Tüm <PLACEHOLDER> değerlerinin tanımlandığ
 
 - **lb1, lb2**: Ubuntu 24.04+ (veya benzeri), aynı L2 subnet'te, 3. network üzerinden
   birbirine unicast VRRP ulaşabiliyor olmalı.
-- **hf1, hf2, hf3**: Splunk kurulu (Heavy Forwarder rolü), aynı L2 subnet'te
+- **HF node'ları (`HF_IPS`, sayı serbest)**: Splunk kurulu (Heavy Forwarder rolü), aynı L2 subnet'te
   (IPVS-DR aynı broadcast domain gerektirir — router arkasında olamaz).
 - Her 5 host'ta: `rsyslog`, `haproxy` (sadece lb'lerde), `keepalived` (sadece
   lb'lerde), `ipvsadm`+`ip_vs` kernel modülü (lb'lerde), Python 3 (hf'lerde).
@@ -103,6 +158,24 @@ tarball'ı (keepalived.org). İnternetsiz bir LB için:
 indirir, böylece offline kurulum online kurulumla aynı haproxy sürümünü
 alır.
 
+## HF sayısı (N adet HF)
+
+HF sayısı sabit değildir. `variables.env`'de listeyi yaz, `install-lb-node.sh`
+keepalived (TCP/UDP `real_server`) ve HAProxy (HEC `server`) bloklarını her HF için
+otomatik üretir; `ipvs-rebalance` de aynı listeyi kullanır:
+
+```bash
+HF_IPS="10.84.93.79 10.84.93.20 10.84.93.6 10.84.92.149"
+HF_NAMES="splunk-hf-7 splunk-hf-8 splunk-hf-9 splunk-hf-10"   # opsiyonel
+```
+
+- `HF_NAMES` boşsa `splunk-hf-1, splunk-hf-2, ...` üretilir; doluysa `HF_IPS` ile
+  aynı sayıda ve sırada olmalı. Tekrar eden IP/isim ve geçersiz IP script tarafından reddedilir.
+- **HF eklemek/çıkarmak:** `HF_IPS`'i güncelle, `variables.env`'i iki LB'ye de kopyala,
+  **iki LB'de** `install-lb-node.sh`'i tekrar çalıştır (idempotent). Yeni HF'te
+  `install-hf-node.sh`'i çalıştır. Sıra: önce yeni HF, sonra LB'ler.
+- Yeni HF'ler aynı L2 subnet'te olmalı ve HEC token değeri diğerleriyle aynı olmalı.
+
 ## Kurulum sırası
 
 ```mermaid
@@ -118,8 +191,8 @@ flowchart LR
     class A,B,C,D,E,F,G step
 ```
 
-1. `variables.env` dosyasını doldur (VIP, lb1/lb2 IP'leri, hf1/2/3 IP'leri,
-   indexer IP'si, HEC token, router_id'ler).
+1. `variables.env` dosyasını doldur (VIP, lb1/lb2 IP'leri, `HF_IPS` / `HF_NAMES`
+   listeleri, indexer IP'si, HEC token, router_id'ler).
 2. **Önce HF'ler**: her hf node'da `scripts/install-hf-node.sh` çalıştır.
    - VIP'i `lo:vip200`'e ekler (ARP suppression sysctl'leriyle birlikte)
    - rsyslog dinleyici config'ini kurar
@@ -148,7 +221,7 @@ python3 loadtest/loadtest_high_volume.py myrun 50000 1   # ozel runid/hacim/tcp-
 ```
 
 Bu ortamda ölçülen sonuç: ~210-230k eps gönderim, **%100 TCP + ~%99.7-99.9 UDP**
-teslimat (3 HF toplamında doğrulandı).
+teslimat (3 HF toplamında doğrulandı; HF sayısı artınca adil pay `1/N` olur).
 
 **Kendi yük test script'ini yazarsan dikkat et:** gönderici thread'lerini
 **flat** oluştur -- hepsini önce bir listeye ekle, sonra hepsini `start()`
@@ -177,7 +250,7 @@ test script'inin threading deseninde.
   geri gelse bile VIP'i otomatik geri almaz (kasıtlı — flapping'i önler).
   Elle geri almak için `systemctl restart keepalived` (düşük öncelikli
   node'u) yeterli.
-- **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — 3 HF'nin de syslog
+- **chk_haproxy, syslog/IPVS sağlığını TAKİP ETMEZ** — tüm HF'lerin syslog
   tarafı düşse bile VIP/VRRP failover tetiklenmez (bu bir alerting durumu,
   failover sebebi değil). Sadece HAProxy/8088 sağlığı VRRP'yi etkiler.
 - **HEC token değeri** tüm HF'lerde aynı olmalı (stanza adı farklı olabilir,

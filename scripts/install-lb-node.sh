@@ -49,9 +49,47 @@ if ! ip -4 -o addr show | grep -q "inet ${OWN_IP}/"; then
     exit 1
 fi
 
+# HF listesi: variables.env'de HF_IPS (bosluk ayrili) ve opsiyonel HF_NAMES.
+# HF sayisi serbest (en az 1); sabit HF1/HF2/HF3 degiskenleri YOK.
+HF_IPS="${HF_IPS:-}"
+read -r -a HF_IP_ARR <<< "$HF_IPS"
+if [ "${#HF_IP_ARR[@]}" -lt 1 ]; then
+    echo "HATA: variables.env'de HF_IPS bos. Ornek: HF_IPS=\"10.0.0.21 10.0.0.22\"" >&2; exit 1
+fi
+if [ -z "${HF_NAMES:-}" ]; then
+    HF_NAMES=""; i=1
+    for _ in "${HF_IP_ARR[@]}"; do HF_NAMES="$HF_NAMES splunk-hf-$i"; i=$((i + 1)); done
+    HF_NAMES="${HF_NAMES# }"
+fi
+read -r -a HF_NAME_ARR <<< "$HF_NAMES"
+if [ "${#HF_NAME_ARR[@]}" -ne "${#HF_IP_ARR[@]}" ]; then
+    echo "HATA: HF_IPS (${#HF_IP_ARR[@]}) ve HF_NAMES (${#HF_NAME_ARR[@]}) eleman sayisi esit olmali." >&2; exit 1
+fi
+if [ "$(printf '%s\n' "${HF_IP_ARR[@]}" | sort | uniq -d | wc -l)" -ne 0 ] || \
+   [ "$(printf '%s\n' "${HF_NAME_ARR[@]}" | sort | uniq -d | wc -l)" -ne 0 ]; then
+    echo "HATA: HF_IPS / HF_NAMES icinde tekrar eden deger var." >&2; exit 1
+fi
+for ip in "${HF_IP_ARR[@]}"; do
+    [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "HATA: gecersiz HF IP: $ip" >&2; exit 1; }
+done
+echo "HF sayisi: ${#HF_IP_ARR[@]} (${HF_IPS})"
+
+# Sablondaki #HF_EACH_BEGIN# ... #HF_EACH_END# bloklarini her HF icin cogaltir;
+# blok icinde <HF_IP> ve <HF_NAME> doldurulur.
+expand_hf() {
+    awk -v ips="$HF_IPS" -v names="$HF_NAMES" '
+        BEGIN { n = split(ips, ip, " "); split(names, nm, " ") }
+        /#HF_EACH_BEGIN#/ { inb = 1; blk = ""; next }
+        /#HF_EACH_END#/   { inb = 0
+                            for (i = 1; i <= n; i++) { b = blk; gsub(/<HF_IP>/, ip[i], b); gsub(/<HF_NAME>/, nm[i], b); printf "%s", b }
+                            next }
+        inb { blk = blk $0 "\n"; next }
+        { print }' "$1"
+}
+
 render() {
     # $1=src $2=dst -- her <PLACEHOLDER> değerini variables.env'den doldurur
-    sed \
+    expand_hf "$1" | sed \
         -e "s/<VIP_IP>/${VIP_IP}/g" \
         -e "s/<VIP_PREFIX>/${VIP_PREFIX:-32}/g" \
         -e "s/<LB1_IP>/${LB1_IP}/g" \
@@ -60,19 +98,13 @@ render() {
         -e "s/<LB2_ROUTER_ID>/${LB2_ROUTER_ID}/g" \
         -e "s/<VRRP_VIRTUAL_ROUTER_ID>/${VRRP_VIRTUAL_ROUTER_ID}/g" \
         -e "s/<VRRP_INTERFACE>/${VRRP_INTERFACE}/g" \
-        -e "s/<HF1_IP>/${HF1_IP}/g" \
-        -e "s/<HF2_IP>/${HF2_IP}/g" \
-        -e "s/<HF3_IP>/${HF3_IP}/g" \
-        -e "s/<HF1_NAME>/${HF1_NAME}/g" \
-        -e "s/<HF2_NAME>/${HF2_NAME}/g" \
-        -e "s/<HF3_NAME>/${HF3_NAME}/g" \
         -e "s/<SYSLOG_PORT>/${SYSLOG_PORT}/g" \
         -e "s/<HEC_PORT>/${HEC_PORT}/g" \
         -e "s/<READYZ_PORT>/${READYZ_PORT}/g" \
         -e "s/<DS_IP>/${DS_IP:-}/g" \
         -e "s/<DS_PORT>/${DS_PORT:-8089}/g" \
         -e "s/<DS_LISTEN_PORT>/${DS_LISTEN_PORT:-8089}/g" \
-        "$1" > "$2"
+        > "$2"
 }
 
 # haproxy hariç -- o ayrıca (vbernat PPA'dan 3.4 sürümü ile) kuruluyor,
@@ -201,7 +233,7 @@ cat > /etc/ipvs-rebalance.env <<EOF
 VIP_IP=${VIP_IP}
 SYSLOG_PORT=${SYSLOG_PORT}
 HEC_PORT=${HEC_PORT}
-HF_IPS="${HF1_IP} ${HF2_IP} ${HF3_IP}"
+HF_IPS="${HF_IPS}"
 PEER_IP=${PEER_IP}
 REBALANCE_MODE=${REBALANCE_MODE:-alert}
 REBALANCE_SKEW_RATIO=${REBALANCE_SKEW_RATIO:-0.5}

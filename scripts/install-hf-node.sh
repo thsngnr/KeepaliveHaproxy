@@ -1,5 +1,5 @@
 #!/bin/bash
-# HF node (hf1/hf2/hf3 -- hepsi aynı) kurulum script'i. Bu repo'nun kök
+# HF node (tüm HF'ler -- hepsi aynı) kurulum script'i. Bu repo'nun kök
 # dizininden çalıştır:
 #
 #   ./scripts/install-hf-node.sh
@@ -31,9 +31,6 @@ render() {
         -e "s/<VIP_IP>/${VIP_IP}/g" \
         -e "s/<LB1_IP>/${LB1_IP}/g" \
         -e "s/<LB2_IP>/${LB2_IP}/g" \
-        -e "s/<HF1_IP>/${HF1_IP}/g" \
-        -e "s/<HF2_IP>/${HF2_IP}/g" \
-        -e "s/<HF3_IP>/${HF3_IP}/g" \
         -e "s/<INDEXER_IP>/${INDEXER_IP}/g" \
         -e "s/<HEC_TOKEN>/${HEC_TOKEN}/g" \
         -e "s/<SYSLOG_PORT>/${SYSLOG_PORT}/g" \
