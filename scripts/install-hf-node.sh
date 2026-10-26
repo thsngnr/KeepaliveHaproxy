@@ -52,8 +52,11 @@ if command -v apt-get >/dev/null; then
     apt-get update -qq
     apt-get install -y rsyslog python3
 elif command -v dnf >/dev/null; then
-    # RHEL/Rocky/Alma: semanage (SELinux dosya baglami) icin policycoreutils-python-utils
+    # RHEL/Oracle/Rocky/Alma 8+: semanage (SELinux dosya baglami) icin policycoreutils-python-utils
     dnf install -y rsyslog python3 policycoreutils-python-utils
+elif command -v yum >/dev/null; then
+    # Oracle/RHEL 7: dnf yok; semanage paketi policycoreutils-python
+    yum install -y rsyslog python3 policycoreutils-python
 fi
 
 echo "== VIP loopback alias (DR) + ARP suppression =="
@@ -115,6 +118,28 @@ systemctl daemon-reload
 systemctl enable --now lvs-realserver-vip.service
 systemctl enable --now hf-readyz.service
 systemctl restart rsyslog
+
+echo "== firewalld =="
+# RHEL/Oracle Linux'ta firewalld varsayilan acik gelir; 514 (syslog), 8088 (HEC) ve
+# 9099 (hf-readyz) acilmazsa LB'den trafik/saglik kontrolu HF'e ulasmaz.
+# Syslog istemcilerden gelir (kaynak IP korunur): 514 herkese; 8088 ve 9099 yalnizca LB'lerden.
+if systemctl is-active --quiet firewalld 2>/dev/null; then
+    if [ "${FIREWALLD_OPEN:-no}" = "yes" ]; then
+        firewall-cmd --permanent --add-port="${SYSLOG_PORT}/udp"
+        firewall-cmd --permanent --add-port="${SYSLOG_PORT}/tcp"
+        for lb in "$LB1_IP" "$LB2_IP"; do
+            for port in "$HEC_PORT" "$READYZ_PORT"; do
+                firewall-cmd --permanent --add-rich-rule="rule family=\"ipv4\" source address=\"${lb}\" port port=\"${port}\" protocol=\"tcp\" accept"
+            done
+        done
+        firewall-cmd --reload
+        echo "firewalld: ${SYSLOG_PORT}/tcp+udp acildi; ${HEC_PORT} ve ${READYZ_PORT} ${LB1_IP}, ${LB2_IP}'ye acildi"
+    else
+        echo "UYARI: firewalld ACIK. Portlar acilmadi (variables.env: FIREWALLD_OPEN=yes ile otomatik acilir)."
+        echo "       Elle: firewall-cmd --permanent --add-port=${SYSLOG_PORT}/udp --add-port=${SYSLOG_PORT}/tcp"
+        echo "             LB'ler (${LB1_IP}, ${LB2_IP}) icin ${HEC_PORT}/tcp ve ${READYZ_PORT}/tcp rich-rule ekle, sonra firewall-cmd --reload"
+    fi
+fi
 
 echo "== durum =="
 systemctl is-active lvs-realserver-vip.service hf-readyz.service rsyslog
