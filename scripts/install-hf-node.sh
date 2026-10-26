@@ -104,7 +104,11 @@ fi
 echo "== hf-readyz health servisi (port ${READYZ_PORT}) =="
 install -d -m 0755 /opt/hf-readyz
 render "$HERE/hf-nodes/hf-readyz/readyz.py" /opt/hf-readyz/readyz.py
+# render sed ile yazar: dosya izni host umask'ina baglidir (umask 077 ise 600 olur ve
+# servis kullanicisi syslog/root disinda okuyamaz -> Errno 13, status=2). Acikca ayarla.
+chmod 0644 /opt/hf-readyz/readyz.py
 render "$HERE/hf-nodes/systemd/hf-readyz.service" /etc/systemd/system/hf-readyz.service
+chmod 0644 /etc/systemd/system/hf-readyz.service
 
 echo "== servisler =="
 systemctl daemon-reload
